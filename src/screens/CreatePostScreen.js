@@ -84,7 +84,9 @@ const CreatePostScreen = ({ navigation }) => {
       if (selectedImage?.uri) {
         try {
           console.log('Iniciando upload da imagem...');
+          console.log('Objeto selectedImage completo:', selectedImage);
           console.log('URI da imagem:', selectedImage.uri);
+          console.log('Tipo da imagem:', selectedImage.type);
           console.log('User ID:', user?.id);
           
           const uploadResult = await StorageService.uploadPostImage(selectedImage.uri, user?.id);

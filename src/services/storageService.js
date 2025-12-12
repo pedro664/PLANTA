@@ -27,21 +27,39 @@ export const StorageService = {
 
       console.log(`[StorageService] Iniciando upload para bucket: ${bucket}, path: ${path}`);
 
-      // Ler o arquivo como base64
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let base64;
+      let arrayBuffer;
 
-      console.log(`[StorageService] Arquivo lido, tamanho base64: ${base64.length}`);
+      // Verificar se é web ou mobile
+      if (typeof window !== 'undefined' && imageUri.startsWith('blob:')) {
+        // Web: converter blob para arrayBuffer
+        console.log('[StorageService] Processando blob para web');
+        const response = await fetch(imageUri);
+        arrayBuffer = await response.arrayBuffer();
+        console.log(`[StorageService] ArrayBuffer criado do blob, tamanho: ${arrayBuffer.byteLength}`);
+      } else {
+        // Mobile: usar FileSystem
+        console.log('[StorageService] Processando arquivo para mobile');
+        
+        // Verificar se FileSystem está disponível
+        if (!FileSystem || !FileSystem.EncodingType) {
+          throw new Error('FileSystem não disponível nesta plataforma');
+        }
+
+        base64 = await FileSystem.readAsStringAsync(imageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        console.log(`[StorageService] Arquivo lido, tamanho base64: ${base64.length}`);
+
+        // Converter base64 para Uint8Array
+        arrayBuffer = base64ToArrayBuffer(base64);
+        console.log(`[StorageService] ArrayBuffer criado, tamanho: ${arrayBuffer.length}`);
+      }
 
       // Determinar o tipo de arquivo
       const fileExt = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
       const mimeType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
-
-      // Converter base64 para Uint8Array
-      const arrayBuffer = base64ToArrayBuffer(base64);
-
-      console.log(`[StorageService] ArrayBuffer criado, tamanho: ${arrayBuffer.length}`);
 
       // Upload para Supabase Storage
       const { data, error } = await supabase.storage

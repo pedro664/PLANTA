@@ -15,7 +15,21 @@ export const useUniversalImagePicker = () => {
         // Use web-compatible picker
         const result = await showUniversalImagePicker();
         if (result) {
-          return await processImageForUpload(result);
+          const processed = await processImageForUpload(result);
+          // Padronizar formato para compatibilidade com expo-image-picker
+          return {
+            uri: processed.uri,
+            type: processed.type,
+            name: processed.name,
+            size: processed.size,
+            base64: processed.base64,
+            file: processed.file,
+            // Campos compatíveis com expo-image-picker
+            width: 1024, // Valor padrão
+            height: 1024, // Valor padrão
+            cancelled: false,
+            canceled: false
+          };
         }
         return null;
       } else {
