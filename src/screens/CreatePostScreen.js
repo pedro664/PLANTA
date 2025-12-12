@@ -78,61 +78,11 @@ const CreatePostScreen = ({ navigation }) => {
         .filter(tag => tag.length > 0)
         .slice(0, 5); // Limit to 5 tags
 
-      let imageUrl = null;
-      
-      // Upload image if selected
-      if (selectedImage?.uri) {
-        try {
-          console.log('Iniciando upload da imagem...');
-          console.log('Objeto selectedImage completo:', selectedImage);
-          console.log('URI da imagem:', selectedImage.uri);
-          console.log('Tipo da imagem:', selectedImage.type);
-          console.log('User ID:', user?.id);
-          
-          const uploadResult = await StorageService.uploadPostImage(selectedImage.uri, user?.id);
-          console.log('Upload concluído:', uploadResult);
-          imageUrl = uploadResult.publicUrl;
-        } catch (uploadError) {
-          console.error('Erro detalhado no upload da imagem:', uploadError);
-          console.error('Mensagem:', uploadError.message);
-          
-          // Tentar criar o post sem imagem se o upload falhar
-          Alert.alert(
-            'Erro no Upload',
-            'Não foi possível fazer upload da imagem. Deseja criar o post sem imagem?',
-            [
-              { text: 'Cancelar', style: 'cancel', onPress: () => setIsSubmitting(false) },
-              { 
-                text: 'Criar sem imagem', 
-                onPress: async () => {
-                  try {
-                    const postDataWithoutImage = {
-                      description: description.trim(),
-                      category,
-                      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0).slice(0, 5),
-                      image_url: null,
-                    };
-                    await createPost(postDataWithoutImage);
-                    showSuccessToast('Post criado com sucesso!');
-                    navigation.goBack();
-                  } catch (error) {
-                    showErrorToast('Erro ao criar post.');
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }
-              },
-            ]
-          );
-          return;
-        }
-      }
-
       const postData = {
         description: description.trim(),
         category,
         tags: processedTags,
-        image_url: imageUrl,
+        imageFile: selectedImage, // Pass the image file for upload
       };
 
       await createPost(postData);

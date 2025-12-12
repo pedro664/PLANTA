@@ -68,7 +68,8 @@ const AddPlantScreen = ({ navigation }) => {
       if (result && result.uri) {
         setFormData(prev => ({
           ...prev,
-          image: result.uri
+          image: result.uri,
+          imageFile: result // Save the full result for upload
         }));
         // Clear any previous image error
         if (errors.image) {
@@ -109,7 +110,7 @@ const AddPlantScreen = ({ navigation }) => {
         name: formData.name.trim(),
         scientific_name: formData.scientific.trim() || null,
         description: formData.description.trim() || 'Uma planta especial do meu jardim.',
-        image_url: formData.image || null,
+        imageFile: formData.imageFile || null, // Pass the image file for upload
         water_frequency: formData.waterFrequency,
         light_needs: formData.lightNeeds,
         planted_date: formData.plantedDate ? new Date(formData.plantedDate).toISOString() : null,

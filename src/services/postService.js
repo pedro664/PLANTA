@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { uploadPostImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
 
 export const postService = {
   /**
@@ -159,16 +160,80 @@ export const postService = {
    */
   async createPost(userId, postData) {
     try {
-      const { data, error } = await supabase
+      let imageUrl = null;
+      
+      // First create the post record to get an ID
+      const { data: postRecord, error: postError } = await supabase
         .from('posts')
         .insert([{
           user_id: userId,
           plant_id: postData.plant_id || null,
-          image_url: postData.image_url || null,
+          image_url: null, // Will be updated after upload
           description: postData.description,
           category: postData.category || 'all',
           tags: postData.tags || [],
         }])
+        .select()
+        .single();
+
+      if (postError) throw postError;
+
+      // Upload image if provided
+      if (postData.imageFile) {
+        try {
+          console.log('📸 Uploading post image...');
+          const uploadResult = await uploadPostImage(postData.imageFile, postRecord.id);
+          imageUrl = uploadResult.url;
+          
+          // Update post record with image URL
+          const { data: updatedPost, error: updateError } = await supabase
+            .from('posts')
+            .update({ image_url: imageUrl })
+            .eq('id', postRecord.id)
+            .select(`
+              *,
+              users!posts_user_id_fkey (
+                id,
+                name,
+                avatar_url
+              ),
+              plants!posts_plant_id_fkey (
+                id,
+                name,
+                image_url
+              )
+            `)
+            .single();
+
+          if (updateError) throw updateError;
+          return updatedPost;
+        } catch (uploadError) {
+          console.error('❌ Error uploading post image:', uploadError);
+          // Return post without image rather than failing completely
+          const { data: postWithoutImage } = await supabase
+            .from('posts')
+            .select(`
+              *,
+              users!posts_user_id_fkey (
+                id,
+                name,
+                avatar_url
+              ),
+              plants!posts_plant_id_fkey (
+                id,
+                name,
+                image_url
+              )
+            `)
+            .eq('id', postRecord.id)
+            .single();
+          return postWithoutImage;
+        }
+      }
+
+      // Return post without image
+      const { data: finalPost } = await supabase
+        .from('posts')
         .select(`
           *,
           users!posts_user_id_fkey (
@@ -182,10 +247,10 @@ export const postService = {
             image_url
           )
         `)
+        .eq('id', postRecord.id)
         .single();
-
-      if (error) throw error;
-      return data;
+      
+      return finalPost;
     } catch (error) {
       console.error('Erro ao criar post:', error);
       throw error;

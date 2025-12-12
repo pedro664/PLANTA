@@ -169,7 +169,7 @@ const ProfileScreen = ({ navigation }) => {
       // Update user data
       const updateData = {
         name: editForm.name.trim(),
-        avatar_url: editForm.avatar,
+        avatarFile: editForm.avatarFile, // Pass the image file for upload
       };
 
       await updateUser(updateData);
@@ -198,7 +198,8 @@ const ProfileScreen = ({ navigation }) => {
       if (result && result.uri) {
         setEditForm(prev => ({
           ...prev,
-          avatar: result.uri
+          avatar: result.uri,
+          avatarFile: result // Save the full result for upload
         }));
       }
     } catch (error) {

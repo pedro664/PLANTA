@@ -4,6 +4,7 @@
  */
 
 import { supabase, TABLES, handleSupabaseError } from './supabase';
+import { uploadPlantImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
 
 export const plantService = {
   // Get all plants for a user
@@ -64,14 +65,17 @@ export const plantService = {
   // Create new plant
   createPlant: async (userId, plantData) => {
     try {
-      const { data, error } = await supabase
+      let imageUrl = null;
+      
+      // First create the plant record to get an ID
+      const { data: plantRecord, error: plantError } = await supabase
         .from(TABLES.PLANTS)
         .insert([
           {
             user_id: userId,
             name: plantData.name,
             scientific_name: plantData.scientific_name || null,
-            image_url: plantData.image_url || null,
+            image_url: null, // Will be updated after upload
             description: plantData.description || null,
             water_frequency: plantData.water_frequency,
             light_needs: plantData.light_needs,
@@ -83,8 +87,33 @@ export const plantService = {
         .select()
         .single();
 
-      if (error) throw error;
-      return data;
+      if (plantError) throw plantError;
+
+      // Upload image if provided
+      if (plantData.imageFile) {
+        try {
+          console.log('🌱 Uploading plant image...');
+          const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
+          imageUrl = uploadResult.url;
+          
+          // Update plant record with image URL
+          const { data: updatedPlant, error: updateError } = await supabase
+            .from(TABLES.PLANTS)
+            .update({ image_url: imageUrl })
+            .eq('id', plantRecord.id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          return updatedPlant;
+        } catch (uploadError) {
+          console.error('❌ Error uploading plant image:', uploadError);
+          // Return plant without image rather than failing completely
+          return plantRecord;
+        }
+      }
+
+      return plantRecord;
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Create Plant'));
     }
@@ -93,12 +122,44 @@ export const plantService = {
   // Update plant
   updatePlant: async (plantId, updates) => {
     try {
+      let imageUrl = updates.image_url;
+      
+      // Handle image upload if new image provided
+      if (updates.imageFile) {
+        try {
+          console.log('🌱 Updating plant image...');
+          
+          // Get current plant to check for existing image
+          const { data: currentPlant } = await supabase
+            .from(TABLES.PLANTS)
+            .select('image_url')
+            .eq('id', plantId)
+            .single();
+
+          const uploadResult = await replaceImage(
+            updates.imageFile, 
+            STORAGE_BUCKETS.PLANTS, 
+            currentPlant?.image_url,
+            `plants/${plantId}`
+          );
+          imageUrl = uploadResult.url;
+        } catch (uploadError) {
+          console.error('❌ Error updating plant image:', uploadError);
+          // Continue with update without changing image
+        }
+      }
+
+      // Remove imageFile from updates and add processed imageUrl
+      const { imageFile, ...cleanUpdates } = updates;
+      const finalUpdates = {
+        ...cleanUpdates,
+        ...(imageUrl && { image_url: imageUrl }),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from(TABLES.PLANTS)
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(finalUpdates)
         .eq('id', plantId)
         .select()
         .single();

@@ -4,6 +4,7 @@
  */
 
 import { supabase, TABLES, handleSupabaseError } from './supabase';
+import { uploadAvatarImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
 
 export const userService = {
   // Get user profile by ID
@@ -54,12 +55,44 @@ export const userService = {
   // Update user profile
   updateUserProfile: async (userId, updates) => {
     try {
+      let avatarUrl = updates.avatar_url;
+      
+      // Handle avatar upload if new image provided
+      if (updates.avatarFile) {
+        try {
+          console.log('👤 Updating user avatar...');
+          
+          // Get current user to check for existing avatar
+          const { data: currentUser } = await supabase
+            .from(TABLES.USERS)
+            .select('avatar_url')
+            .eq('id', userId)
+            .single();
+
+          const uploadResult = await replaceImage(
+            updates.avatarFile, 
+            STORAGE_BUCKETS.AVATARS, 
+            currentUser?.avatar_url,
+            `users/${userId}`
+          );
+          avatarUrl = uploadResult.url;
+        } catch (uploadError) {
+          console.error('❌ Error updating user avatar:', uploadError);
+          // Continue with update without changing avatar
+        }
+      }
+
+      // Remove avatarFile from updates and add processed avatarUrl
+      const { avatarFile, ...cleanUpdates } = updates;
+      const finalUpdates = {
+        ...cleanUpdates,
+        ...(avatarUrl && { avatar_url: avatarUrl }),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from(TABLES.USERS)
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(finalUpdates)
         .eq('id', userId)
         .select()
         .single();
