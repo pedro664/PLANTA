@@ -8,6 +8,7 @@ yarn-error.log*
 .expo/
 dist/
 web-build/
+.expo-shared/
 
 # Native
 *.orig.*
@@ -31,7 +32,6 @@ yarn-error.*
 
 # Local env files
 .env*.local
-.env
 
 # Typescript
 *.tsbuildinfo
@@ -43,6 +43,9 @@ android/.gradle/
 android/local.properties
 android/app/release/
 android/app/debug/
+android/gradle/
+android/gradlew
+android/gradlew.bat
 
 # iOS
 ios/build/
@@ -53,8 +56,16 @@ ios/*.xcworkspace/xcuserdata
 *.tmp
 *.temp
 temp-build/
+*.log
 
 # Build outputs
 *.apk
 *.aab
 *.ipa
+
+# EAS
+eas-build-*/
+
+# Cache
+.cache/
+*.cache
