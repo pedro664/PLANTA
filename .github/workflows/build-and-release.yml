@@ -1,0 +1,86 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build and Release APK
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🏗 Setup repo
+      uses: actions/checkout@v4
+
+    - name: 🏗 Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: npm
+
+    - name: 🏗 Setup EAS
+      uses: expo/expo-github-action@v8
+      with:
+        eas-version: latest
+        token: ${{ secrets.EXPO_TOKEN }}
+
+    - name: 📦 Install dependencies
+      run: npm ci
+
+    - name: 🚀 Build APK
+      run: |
+        echo "Starting APK build..."
+        eas build --platform android --profile preview --non-interactive --wait
+        
+    - name: 📱 Download APK
+      run: |
+        # Get the latest build URL
+        BUILD_URL=$(eas build:list --platform android --status finished --limit 1 --json | jq -r '.[0].artifacts.buildUrl')
+        echo "Downloading APK from: $BUILD_URL"
+        curl -L -o educultivo.apk "$BUILD_URL"
+        
+    - name: 📋 Create Release
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.event.inputs.version || github.ref_name }}
+        release_name: Educultivo ${{ github.event.inputs.version || github.ref_name }}
+        body: |
+          ## 📱 Educultivo APK Release
+          
+          ### 🚀 Novidades desta versão:
+          - Correções de performance
+          - Melhorias na interface
+          - Correção do travamento na tela de bundle
+          
+          ### 📥 Como instalar:
+          1. Baixe o arquivo `educultivo.apk`
+          2. Ative "Fontes desconhecidas" no Android
+          3. Instale o APK
+          
+          ### 📋 Requisitos:
+          - Android 5.0 ou superior
+          - 100MB de espaço livre
+          
+        draft: false
+        prerelease: false
+        
+    - name: 📎 Upload APK to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./educultivo.apk
+        asset_name: educultivo-${{ github.event.inputs.version || github.ref_name }}.apk
+        asset_content_type: application/vnd.android.package-archive

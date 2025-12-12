@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "Educultivo",
+    "slug": "planta-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "description": "Educultivo - Aplicativo para cuidar das suas plantas, acompanhar crescimento e conectar com uma comunidade de jardineiros.",
+    "primaryColor": "#2E4A3D",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F5F0"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.planta.app",
+      "buildNumber": "1.0.0",
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Precisamos de acesso à câmera para você adicionar fotos das suas plantas e escanear QR codes para compartilhar plantas.",
+        "NSPhotoLibraryUsageDescription": "Precisamos de acesso à galeria para você escolher fotos das suas plantas do seu dispositivo.",
+        "NSPhotoLibraryAddUsageDescription": "Permitir que o app salve fotos das suas plantas na galeria.",
+        "CFBundleDisplayName": "Educultivo",
+        "CFBundleName": "Educultivo"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F7F5F0"
+      },
+      "package": "com.planta.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "edgeToEdgeEnabled": true,
+      "allowBackup": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "planta-app",
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/48a25647-c50d-4072-8610-f3c5b70ffbbe"
+    },
+    "runtimeVersion": "1.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir que $(PRODUCT_NAME) acesse a câmera para escanear QR codes das plantas."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "48a25647-c50d-4072-8610-f3c5b70ffbbe"
+      }
+    }
+  }
+}

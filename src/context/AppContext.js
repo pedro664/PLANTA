@@ -1,0 +1,561 @@
+/**
+ * App Context with Supabase Integration
+ * Global state management with real-time database operations
+ */
+
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { supabase, authHelpers } from '../services/supabase';
+import { userService } from '../services/userService';
+import { plantService } from '../services/plantService';
+import { careLogService } from '../services/careLogService';
+import { postService } from '../services/postService';
+import { showSuccessToast, showErrorToast } from '../components/Toast';
+
+// Create the context
+const AppContext = createContext();
+
+// Custom hook to use the context
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
+};
+
+// Initial state
+const initialState = {
+  user: null,
+  plants: [],
+  careLogs: [],
+  posts: [],
+  isLoading: false,
+  isAuthenticated: false,
+};
+
+// Action types
+const ACTION_TYPES = {
+  SET_LOADING: 'SET_LOADING',
+  SET_USER: 'SET_USER',
+  SET_PLANTS: 'SET_PLANTS',
+  ADD_PLANT: 'ADD_PLANT',
+  UPDATE_PLANT: 'UPDATE_PLANT',
+  DELETE_PLANT: 'DELETE_PLANT',
+  SET_CARE_LOGS: 'SET_CARE_LOGS',
+  ADD_CARE_LOG: 'ADD_CARE_LOG',
+  SET_POSTS: 'SET_POSTS',
+  SET_AUTHENTICATED: 'SET_AUTHENTICATED',
+  RESET_STATE: 'RESET_STATE',
+};
+
+// Reducer
+const appReducer = (state, action) => {
+  switch (action.type) {
+    case ACTION_TYPES.SET_LOADING:
+      return { ...state, isLoading: action.payload };
+
+    case ACTION_TYPES.SET_USER:
+      return { ...state, user: action.payload };
+
+    case ACTION_TYPES.SET_PLANTS:
+      return { ...state, plants: action.payload };
+
+    case ACTION_TYPES.ADD_PLANT:
+      return { ...state, plants: [action.payload, ...state.plants] };
+
+    case ACTION_TYPES.UPDATE_PLANT:
+      return {
+        ...state,
+        plants: state.plants.map((plant) =>
+          plant.id === action.payload.id ? action.payload : plant
+        ),
+      };
+
+    case ACTION_TYPES.DELETE_PLANT:
+      return {
+        ...state,
+        plants: state.plants.filter((plant) => plant.id !== action.payload),
+      };
+
+    case ACTION_TYPES.SET_CARE_LOGS:
+      return { ...state, careLogs: action.payload };
+
+    case ACTION_TYPES.ADD_CARE_LOG:
+      return { ...state, careLogs: [action.payload, ...state.careLogs] };
+
+    case ACTION_TYPES.SET_POSTS:
+      return { ...state, posts: action.payload };
+
+    case ACTION_TYPES.SET_AUTHENTICATED:
+      return { ...state, isAuthenticated: action.payload };
+
+    case ACTION_TYPES.RESET_STATE:
+      return { ...initialState };
+
+    default:
+      return state;
+  }
+};
+
+// Provider component
+export const AppProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [session, setSession] = useState(null);
+
+  // Initialize auth listener
+  useEffect(() => {
+    console.log('🔐 Starting auth initialization...');
+    
+    // Set authenticated to false immediately to allow app to load
+    dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: false });
+    
+    const initializeAuth = async () => {
+      try {
+        console.log('🔗 Testing Supabase connection...');
+        
+        // Shorter timeout and more aggressive fallback
+        const connectionTest = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout')), 1500)
+          )
+        ]);
+        
+        const { data: { session }, error } = connectionTest;
+        
+        if (error) {
+          console.error('❌ Error getting session:', error);
+          return;
+        }
+
+        console.log('📱 Session status:', session ? 'Active' : 'None');
+        setSession(session);
+        dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: !!session });
+        
+        console.log('✅ Auth initialization complete');
+      } catch (error) {
+        console.error('❌ Auth initialization error:', error);
+        console.log('🔄 Continuing in offline mode');
+      }
+    };
+
+    // Run in background with delay to not block initial render
+    setTimeout(() => {
+      initializeAuth();
+    }, 100);
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('🔄 Auth state changed:', _event, session ? 'Active' : 'None');
+      setSession(session);
+      dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: !!session });
+      
+      if (!session) {
+        dispatch({ type: ACTION_TYPES.RESET_STATE });
+      }
+      // Let screens load user data when needed
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load user data
+  const loadUserData = async (userId) => {
+    try {
+      console.log('📊 Loading user data for:', userId);
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+
+      // Load user profile
+      console.log('👤 Loading user profile...');
+      const userProfile = await userService.getUserProfile(userId);
+      console.log('✅ User profile loaded:', userProfile?.name);
+      dispatch({ type: ACTION_TYPES.SET_USER, payload: userProfile });
+
+      // Load user plants
+      console.log('🌱 Loading user plants...');
+      const plants = await plantService.getUserPlants(userId);
+      console.log('✅ Plants loaded:', plants?.length || 0);
+      dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: plants || [] });
+
+      // Load recent care logs
+      console.log('📝 Loading care logs...');
+      const careLogs = await careLogService.getUserCareLogs(userId, 50);
+      console.log('✅ Care logs loaded:', careLogs?.length || 0);
+      dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: careLogs || [] });
+
+      console.log('🎉 User data loading complete!');
+    } catch (error) {
+      console.error('❌ Error loading user data:', error);
+      
+      // If user profile doesn't exist, create one
+      if (error.message.includes('No rows returned') || 
+          error.message.includes('null') || 
+          error.message.includes('Cannot coerce the result to a single JSON object') ||
+          error.message.includes('The result contains 0 rows')) {
+        console.log('🔧 Creating user profile...');
+        try {
+          const newUserProfile = await userService.createUserProfile(userId, {
+            name: session?.user?.user_metadata?.name || 'Usuário',
+            email: session?.user?.email || '',
+          });
+          console.log('✅ User profile created:', newUserProfile?.name);
+          dispatch({ type: ACTION_TYPES.SET_USER, payload: newUserProfile });
+          dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: [] });
+          dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
+        } catch (createError) {
+          console.error('❌ Error creating user profile:', createError);
+          // If creation fails, use a basic user object
+          const basicUser = {
+            id: userId,
+            name: session?.user?.user_metadata?.name || 'Usuário',
+            email: session?.user?.email || '',
+            xp: 0,
+            level: 'Iniciante',
+            total_plants: 0,
+            active_days: 1,
+            badges: [],
+          };
+          dispatch({ type: ACTION_TYPES.SET_USER, payload: basicUser });
+          dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: [] });
+          dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
+        }
+      } else {
+        showErrorToast('Erro ao carregar dados do usuário');
+      }
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
+    }
+  };
+
+  // Auth functions
+  const signUp = async (email, password, userData) => {
+    try {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+      
+      const { user } = await authHelpers.signUp(email, password, userData);
+      
+      if (user) {
+        // Don't create user profile immediately - let the auth state change handle it
+        showSuccessToast('Conta criada com sucesso!');
+        return user;
+      }
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
+    }
+  };
+
+  const signIn = async (email, password) => {
+    try {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+      
+      const { user } = await authHelpers.signIn(email, password);
+      
+      if (user) {
+        showSuccessToast('Login realizado com sucesso!');
+        return user;
+      }
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await authHelpers.signOut();
+      setSession(null);
+      dispatch({ type: ACTION_TYPES.RESET_STATE });
+      dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: false });
+      showSuccessToast('Logout realizado com sucesso!');
+    } catch (error) {
+      console.error('❌ Error signing out:', error);
+      showErrorToast('Erro ao fazer logout');
+      // Force logout even if there's an error
+      setSession(null);
+      dispatch({ type: ACTION_TYPES.RESET_STATE });
+      dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: false });
+    }
+  };
+
+  // Plant functions
+  const addPlant = async (plantData) => {
+    try {
+      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      
+      const newPlant = await plantService.createPlant(state.user.id, plantData);
+      dispatch({ type: ACTION_TYPES.ADD_PLANT, payload: newPlant });
+      
+      // Add XP for adding a plant
+      await userService.addXP(state.user.id, 10);
+      
+      showSuccessToast('Planta adicionada com sucesso!');
+      return newPlant;
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    }
+  };
+
+  const updatePlant = async (plantId, updates) => {
+    try {
+      const updatedPlant = await plantService.updatePlant(plantId, updates);
+      dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
+      
+      showSuccessToast('Planta atualizada com sucesso!');
+      return updatedPlant;
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    }
+  };
+
+  const deletePlant = async (plantId) => {
+    try {
+      await plantService.deletePlant(plantId);
+      dispatch({ type: ACTION_TYPES.DELETE_PLANT, payload: plantId });
+      
+      showSuccessToast('Planta removida com sucesso!');
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    }
+  };
+
+  const getPlantById = (plantId) => {
+    return state.plants.find((plant) => plant.id === plantId);
+  };
+
+  // Care log functions
+  const addCareLog = async (plantId, careData) => {
+    try {
+      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      
+      const newCareLog = await careLogService.createCareLog(
+        state.user.id,
+        plantId,
+        careData
+      );
+      
+      dispatch({ type: ACTION_TYPES.ADD_CARE_LOG, payload: newCareLog });
+      
+      // Update plant in local state if it was watered
+      if (careData.care_type === 'water') {
+        const plant = getPlantById(plantId);
+        if (plant) {
+          const updatedPlant = {
+            ...plant,
+            last_watered: careData.care_date || new Date().toISOString(),
+            status: 'fine',
+          };
+          dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
+        }
+      }
+      
+      // Add XP for care activity
+      await userService.addXP(state.user.id, 5);
+      
+      showSuccessToast('Cuidado registrado com sucesso!');
+      return newCareLog;
+    } catch (error) {
+      showErrorToast(error.message);
+      throw error;
+    }
+  };
+
+  // Post functions
+  const loadPosts = async (category = 'all', limit = 20, offset = 0) => {
+    try {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+      
+      const userId = session?.user?.id || state.user?.id;
+      
+      let posts;
+      if (category === 'all') {
+        posts = await postService.getAllPosts(limit, offset, userId);
+      } else {
+        posts = await postService.getPostsByCategory(category, limit, offset, userId);
+      }
+      
+      dispatch({ type: ACTION_TYPES.SET_POSTS, payload: posts });
+      return posts;
+    } catch (error) {
+      console.error('❌ Error loading posts:', error);
+      showErrorToast('Erro ao carregar posts da comunidade');
+      return [];
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
+    }
+  };
+
+  const createPost = async (postData) => {
+    try {
+      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      
+      const newPost = await postService.createPost(state.user.id, postData);
+      
+      // Add to local state
+      dispatch({ type: ACTION_TYPES.SET_POSTS, payload: [newPost, ...state.posts] });
+      
+      showSuccessToast('Post criado com sucesso!');
+      return newPost;
+    } catch (error) {
+      console.error('❌ Error creating post:', error);
+      showErrorToast('Erro ao criar post');
+      throw error;
+    }
+  };
+
+  const toggleLike = async (postId) => {
+    try {
+      const userId = session?.user?.id || state.user?.id;
+      if (!userId) throw new Error('Usuário não autenticado');
+      
+      // Find current post to get current state
+      const currentPost = state.posts.find(post => post.id === postId);
+      if (!currentPost) {
+        throw new Error('Post não encontrado');
+      }
+      
+      const result = await postService.toggleLike(userId, postId);
+      
+      // Update local state with safe counter logic
+      const updatedPosts = state.posts.map(post => {
+        if (post.id === postId) {
+          const currentLikesCount = Math.max(0, post.likes_count || 0);
+          const newLikesCount = result.liked 
+            ? currentLikesCount + 1 
+            : Math.max(0, currentLikesCount - 1);
+          
+          return {
+            ...post,
+            likes_count: newLikesCount,
+            user_has_liked: result.liked
+          };
+        }
+        return post;
+      });
+      
+      dispatch({ type: ACTION_TYPES.SET_POSTS, payload: updatedPosts });
+      return result;
+    } catch (error) {
+      console.error('❌ Error toggling like:', error);
+      showErrorToast('Erro ao curtir post');
+      
+      // Reload posts to sync with server state on error
+      try {
+        await loadPosts();
+      } catch (reloadError) {
+        console.error('❌ Error reloading posts:', reloadError);
+      }
+      
+      throw error;
+    }
+  };
+
+  const addComment = async (postId, text) => {
+    try {
+      const userId = session?.user?.id || state.user?.id;
+      if (!userId) throw new Error('Usuário não autenticado');
+      
+      const comment = await postService.addComment(userId, postId, text);
+      
+      // Update local state
+      const updatedPosts = state.posts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            comments_count: Math.max(0, (post.comments_count || 0) + 1)
+          };
+        }
+        return post;
+      });
+      
+      dispatch({ type: ACTION_TYPES.SET_POSTS, payload: updatedPosts });
+      showSuccessToast('Comentário adicionado!');
+      return comment;
+    } catch (error) {
+      console.error('❌ Error adding comment:', error);
+      showErrorToast('Erro ao adicionar comentário');
+      throw error;
+    }
+  };
+
+  const getFilteredPosts = (filter = 'all') => {
+    if (filter === 'all') {
+      return state.posts;
+    }
+    return state.posts.filter(post => post.category === filter);
+  };
+
+  // Utility functions
+  const getPlantsNeedingAttention = () => {
+    return state.plants.filter((plant) => 
+      plant.status === 'thirsty' || plant.status === 'attention'
+    );
+  };
+
+  const refreshData = async () => {
+    if (state.user?.id) {
+      await loadUserData(state.user.id);
+      await loadPosts(); // Também recarregar posts
+    }
+  };
+
+  // Initialize user data if authenticated but no user data loaded
+  const initializeUserData = async () => {
+    if (session?.user && !state.user && !state.isLoading) {
+      console.log('🚀 Initializing user data on demand...');
+      await loadUserData(session.user.id);
+      await loadPosts(); // Carregar posts também
+    }
+  };
+
+  // Context value
+  const contextValue = {
+    // State
+    ...state,
+    session,
+
+    // Auth functions
+    signUp,
+    signIn,
+    signOut,
+
+    // Plant functions
+    addPlant,
+    updatePlant,
+    deletePlant,
+    getPlantById,
+
+    // Care log functions
+    addCareLog,
+
+    // Post functions
+    loadPosts,
+    createPost,
+    toggleLike,
+    addComment,
+    getFilteredPosts,
+
+    // Utility functions
+    getPlantsNeedingAttention,
+    refreshData,
+    loadUserData,
+    initializeUserData,
+  };
+
+  return (
+    <AppContext.Provider value={contextValue}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export default AppContext;
