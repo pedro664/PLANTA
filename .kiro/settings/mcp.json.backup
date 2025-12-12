@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "supabase-postgres": {
+      "command": "C:\\Users\\necta\\.local\\bin\\uvx.exe",
+      "args": ["postgres-mcp-server"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "postgresql://postgres:[YOUR-PASSWORD]@db.vmwuxstyiurspttffykt.supabase.co:5432/postgres",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_tables",
+        "describe_table", 
+        "run_query",
+        "get_schema"
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+# Kiro IDE settings with sensitive data
+.kiro/settings/mcp.json
+
+# Environment files with credentials
+.env
+.env.local
+.env.production
+.env.development
+
+# Supabase local development
+supabase/.env
+supabase/.env.local
+
+# Database dumps and backups
+*.sql.backup
+*.dump
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "supabase-postgres": {
+      "command": "uvx",
+      "args": ["postgres-mcp-server"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_tables",
+        "describe_table", 
+        "run_query",
+        "get_schema",
+        "list_indexes",
+        "list_functions"
+      ]
+    },
+    "supabase-rest": {
+      "command": "uvx", 
+      "args": ["supabase-rest-mcp-server"],
+      "env": {
+        "SUPABASE_URL": "https://[YOUR-PROJECT-REF].supabase.co",
+        "SUPABASE_ANON_KEY": "[YOUR-ANON-KEY]",
+        "SUPABASE_SERVICE_ROLE_KEY": "[YOUR-SERVICE-ROLE-KEY]"
+      },
+      "disabled": true,
+      "autoApprove": [
+        "list_tables",
+        "select_data",
+        "insert_data",
+        "update_data"
+      ]
+    }
+  }
+}
