@@ -284,6 +284,23 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const updateUser = async (userData) => {
+    try {
+      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      
+      // Update user profile in database
+      const updatedUser = await userService.updateUserProfile(state.user.id, userData);
+      
+      // Update local state
+      dispatch({ type: ACTION_TYPES.SET_USER, payload: updatedUser });
+      
+      return updatedUser;
+    } catch (error) {
+      console.error('❌ Error updating user:', error);
+      throw error;
+    }
+  };
+
   // Plant functions
   const addPlant = async (plantData) => {
     try {
@@ -527,6 +544,7 @@ export const AppProvider = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    updateUser,
 
     // Plant functions
     addPlant,

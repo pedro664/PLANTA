@@ -30,7 +30,7 @@ import { showSuccessToast, showErrorToast } from '../components/Toast';
 // Temporarily removed animation imports for debugging
 
 const ProfileScreen = ({ navigation }) => {
-  const { user, plants, setUser, signOut } = useAppContext();
+  const { user, plants, updateUser, signOut } = useAppContext();
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
 
@@ -166,15 +166,13 @@ const ProfileScreen = ({ navigation }) => {
     }
 
     try {
-      const updatedUser = {
-        ...user,
+      // Update user data
+      const updateData = {
         name: editForm.name.trim(),
-        avatar: editForm.avatar,
+        avatar_url: editForm.avatar,
       };
 
-      // Pass avatar file for sync service (if changed)
-      const avatarFile = editForm.avatar !== user.avatar_url ? { uri: editForm.avatar } : null;
-      await setUser(updatedUser, avatarFile);
+      await updateUser(updateData);
       
       showSuccessToast('Perfil atualizado com sucesso!');
       
