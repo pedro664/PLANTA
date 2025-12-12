@@ -19,7 +19,7 @@ import { useAppContext } from '../context/AppContext';
 import { colors } from '../theme/colors';
 import { textStyles } from '../theme/typography';
 import { spacing } from '../theme/spacing';
-import { showImagePickerOptions } from '../services/imageService';
+import { useUniversalImagePicker } from '../components/UniversalImagePicker';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
 
 const AddPlantScreen = ({ navigation }) => {
@@ -55,14 +55,20 @@ const AddPlantScreen = ({ navigation }) => {
     { value: 'shade', label: 'Sombra' },
   ];
 
-  // Image picker function using the new image service
+  const { pickImage: pickUniversalImage } = useUniversalImagePicker();
+
+  // Image picker function using the universal image service
   const pickImage = async () => {
     try {
-      const imageUri = await showImagePickerOptions();
-      if (imageUri) {
+      const result = await pickUniversalImage({
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+      
+      if (result && result.uri) {
         setFormData(prev => ({
           ...prev,
-          image: imageUri
+          image: result.uri
         }));
         // Clear any previous image error
         if (errors.image) {

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { useUniversalImagePicker } from '../components/UniversalImagePicker';
 import Text from '../components/Text';
 import LazyImage from '../components/LazyImage';
 import { useAppContext } from '../context/AppContext';
@@ -33,75 +33,23 @@ const CreatePostScreen = ({ navigation }) => {
   // Animation values
   const submitButtonScale = useRef(new Animated.Value(1)).current;
 
-  // Handle image selection
-  const handleImagePicker = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permissão necessária',
-          'Precisamos de permissão para acessar suas fotos.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
+  const { pickImage } = useUniversalImagePicker();
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+  // Handle image selection
+  const handleImageSelection = async () => {
+    try {
+      const result = await pickImage({
         aspect: [1, 1],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0]);
+      if (result && result.uri) {
+        setSelectedImage(result);
       }
     } catch (error) {
       console.error('Error picking image:', error);
       showErrorToast('Erro ao selecionar imagem');
     }
-  };
-  // Handle camera
-  const handleCamera = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permissão necessária',
-          'Precisamos de permissão para usar a câmera.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0]);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      showErrorToast('Erro ao tirar foto');
-    }
-  };
-
-  // Handle image options
-  const showImageOptions = () => {
-    Alert.alert(
-      'Adicionar Imagem',
-      'Escolha uma opção:',
-      [
-        { text: 'Câmera', onPress: handleCamera },
-        { text: 'Galeria', onPress: handleImagePicker },
-        { text: 'Cancelar', style: 'cancel' },
-      ]
-    );
   };
 
   // Handle post submission
@@ -238,7 +186,7 @@ const CreatePostScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Imagem *</Text>
             <TouchableOpacity 
               style={styles.imageContainer}
-              onPress={showImageOptions}
+              onPress={handleImageSelection}
               activeOpacity={0.8}
             >
               {selectedImage ? (

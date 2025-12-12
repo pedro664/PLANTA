@@ -18,6 +18,7 @@ import { useAppContext } from '../context/AppContext';
 import { colors } from '../theme/colors';
 import { typography, textStyles } from '../theme/typography';
 import { spacing, borderRadius, layout } from '../theme/spacing';
+import WebTestComponent from '../components/WebTestComponent';
 
 const { width } = Dimensions.get('window');
 
@@ -172,6 +173,7 @@ const HomeScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
+      <WebTestComponent />
       <View style={dynamicStyles.contentArea}>
         {/* Gamification Card - exactly like the original */}
         <View style={styles.gamificationCard}>

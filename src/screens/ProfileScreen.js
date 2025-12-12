@@ -25,7 +25,7 @@ import { useAppContext } from '../context/AppContext';
 import { colors } from '../theme/colors';
 import { typography, textStyles } from '../theme/typography';
 import { spacing, borderRadius } from '../theme/spacing';
-import { showImagePickerOptions } from '../services/imageService';
+import { useUniversalImagePicker } from '../components/UniversalImagePicker';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
 // Temporarily removed animation imports for debugging
 
@@ -188,13 +188,19 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  const { pickImage } = useUniversalImagePicker();
+
   const handleChangeAvatar = async () => {
     try {
-      const imageUri = await showImagePickerOptions();
-      if (imageUri) {
+      const result = await pickImage({
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      
+      if (result && result.uri) {
         setEditForm(prev => ({
           ...prev,
-          avatar: imageUri
+          avatar: result.uri
         }));
       }
     } catch (error) {
