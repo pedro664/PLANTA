@@ -337,6 +337,7 @@ const MyPlantsScreen = ({ navigation }) => {
         {/* Plants Grid or Empty State */}
         {filteredPlants.length > 0 ? (
           <FlatList
+            key={`plants-grid-${responsiveGrid.columns}`}
             data={filteredPlants}
             renderItem={renderPlantItem}
             keyExtractor={keyExtractor}
