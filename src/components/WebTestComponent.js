@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   clearButton: {
-    backgroundColor: colors.accent.terracotta,
+    backgroundColor: colors.botanical.clay,
     padding: 8,
     borderRadius: 6,
   },
