@@ -164,48 +164,60 @@ export const AppProvider = ({ children }) => {
   // Load user data
   const loadUserData = async (userId) => {
     try {
-      console.log('📊 Loading user data for:', userId);
+      console.log('📊 Carregando dados do usuário:', userId);
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
 
+      // MELHORIA #3: Sincronizar usuário primeiro
+      console.log('👤 Sincronizando perfil de usuário...');
+      try {
+        const syncedUser = await userService.syncUserProfile(userId, {
+          name: session?.user?.user_metadata?.name || 'Usuário',
+          email: session?.user?.email || '',
+        });
+        console.log('✅ Perfil sincronizado:', syncedUser?.name);
+      } catch (syncError) {
+        console.warn('⚠️ Erro ao sincronizar perfil (continuando):', syncError);
+      }
+
       // Load user profile
-      console.log('👤 Loading user profile...');
+      console.log('👤 Carregando perfil do usuário...');
       const userProfile = await userService.getUserProfile(userId);
-      console.log('✅ User profile loaded:', userProfile?.name);
+      console.log('✅ Perfil carregado:', userProfile?.name);
       dispatch({ type: ACTION_TYPES.SET_USER, payload: userProfile });
 
       // Load user plants
-      console.log('🌱 Loading user plants...');
+      console.log('🌱 Carregando plantas do usuário...');
       const plants = await plantService.getUserPlants(userId);
-      console.log('✅ Plants loaded:', plants?.length || 0);
+      console.log('✅ Plantas carregadas:', plants?.length || 0);
       dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: plants || [] });
 
       // Load recent care logs
-      console.log('📝 Loading care logs...');
+      console.log('📝 Carregando histórico de cuidados...');
       const careLogs = await careLogService.getUserCareLogs(userId, 50);
-      console.log('✅ Care logs loaded:', careLogs?.length || 0);
+      console.log('✅ Histórico carregado:', careLogs?.length || 0);
       dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: careLogs || [] });
 
-      console.log('🎉 User data loading complete!');
+      console.log('🎉 Dados do usuário carregados com sucesso!');
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
+      console.error('❌ Erro ao carregar dados do usuário:', error);
       
       // If user profile doesn't exist, create one
       if (error.message.includes('No rows returned') || 
           error.message.includes('null') || 
           error.message.includes('Cannot coerce the result to a single JSON object') ||
           error.message.includes('The result contains 0 rows')) {
-        console.log('🔧 Creating user profile...');
+        console.log('🔧 Criando novo perfil de usuário...');
         try {
           const newUserProfile = await userService.createUserProfile(userId, {
             name: session?.user?.user_metadata?.name || 'Usuário',
             email: session?.user?.email || '',
           });
-          console.log('✅ User profile created:', newUserProfile?.name);
+          console.log('✅ Perfil criado:', newUserProfile?.name);
           dispatch({ type: ACTION_TYPES.SET_USER, payload: newUserProfile });
           dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: [] });
           dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
         } catch (createError) {
-          console.error('❌ Error creating user profile:', createError);
+          console.error('❌ Erro ao criar perfil:', createError);
           // If creation fails, use a basic user object
           const basicUser = {
             id: userId,
@@ -306,6 +318,18 @@ export const AppProvider = ({ children }) => {
     try {
       if (!state.user?.id) throw new Error('Usuário não autenticado');
       
+      // VALIDAÇÃO: Verificar imagem antes de enviar
+      if (!plantData.imageFile) {
+        throw new Error('Selecione uma imagem para a planta');
+      }
+      
+      // VALIDAÇÃO: Verificar tamanho da imagem
+      const MAX_SIZE_MB = 5;
+      if (plantData.imageFile.size > MAX_SIZE_MB * 1024 * 1024) {
+        throw new Error(`Imagem muito grande (máximo ${MAX_SIZE_MB}MB)`);
+      }
+      
+      console.log('📱 Criando planta com imagem:', plantData.name);
       const newPlant = await plantService.createPlant(state.user.id, plantData);
       dispatch({ type: ACTION_TYPES.ADD_PLANT, payload: newPlant });
       
@@ -315,6 +339,7 @@ export const AppProvider = ({ children }) => {
       showSuccessToast('Planta adicionada com sucesso!');
       return newPlant;
     } catch (error) {
+      console.error('❌ Erro ao adicionar planta:', error);
       showErrorToast(error.message);
       throw error;
     }
@@ -354,12 +379,19 @@ export const AppProvider = ({ children }) => {
     try {
       if (!state.user?.id) throw new Error('Usuário não autenticado');
       
+      console.log('📋 Registrando care log para planta:', plantId, 'Tipo:', careData.care_type);
+      
       const newCareLog = await careLogService.createCareLog(
         state.user.id,
         plantId,
         careData
       );
       
+      if (!newCareLog) {
+        throw new Error('Falha ao criar registro de cuidado');
+      }
+      
+      console.log('✅ Care log criado:', newCareLog.id);
       dispatch({ type: ACTION_TYPES.ADD_CARE_LOG, payload: newCareLog });
       
       // BUG FIX #3: Sempre atualizar care_logs da planta no estado, não só para 'water'
@@ -377,17 +409,22 @@ export const AppProvider = ({ children }) => {
           status: careData.care_type === 'water' ? 'fine' : plant.status,
         };
         
-        console.log('🔄 Updating plant state with care log:', updatedPlant.care_logs?.length);
+        console.log('🔄 Atualizando planta com care log. Total de logs:', updatedPlant.care_logs?.length);
         dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
       }
       
       // Add XP for care activity
-      await userService.addXP(state.user.id, 5);
+      try {
+        await userService.addXP(state.user.id, 5);
+      } catch (xpError) {
+        console.warn('⚠️ Erro ao adicionar XP:', xpError);
+        // Não falhar o care log por erro de XP
+      }
       
       showSuccessToast('Cuidado registrado com sucesso!');
       return newCareLog;
     } catch (error) {
-      console.error('❌ Error adding care log:', error);
+      console.error('❌ Erro ao registrar cuidado:', error);
       showErrorToast(error.message);
       throw error;
     }

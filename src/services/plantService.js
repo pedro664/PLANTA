@@ -65,6 +65,11 @@ export const plantService = {
   // Create new plant
   createPlant: async (userId, plantData) => {
     try {
+      // VALIDAÇÃO CRÍTICA #1: Imagem obrigatória
+      if (!plantData.imageFile) {
+        throw new Error('Imagem é obrigatória para criar uma planta');
+      }
+
       let imageUrl = null;
       
       // First create the plant record to get an ID
@@ -82,6 +87,9 @@ export const plantService = {
             status: 'fine',
             last_watered: plantData.last_watered || new Date().toISOString(),
             tips: plantData.tips || [],
+            image_status: 'pending',
+            image_size_kb: null,
+            image_uploaded_at: null,
           },
         ])
         .select()
@@ -89,42 +97,45 @@ export const plantService = {
 
       if (plantError) throw plantError;
 
-      // Upload image if provided
-      if (plantData.imageFile) {
+      // Upload image (now mandatory)
+      try {
+        console.log('🌱 Uploading plant image for plant:', plantRecord.id);
+        const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
+        imageUrl = uploadResult.url;
+        
+        console.log('✅ Image uploaded successfully:', imageUrl);
+        
+        // Update plant record with image URL and metadata
+        const { data: updatedPlant, error: updateError } = await supabase
+          .from(TABLES.PLANTS)
+          .update({ 
+            image_url: imageUrl,
+            image_status: 'supabase',
+            image_size_kb: plantData.imageFile?.size ? Math.round(plantData.imageFile.size / 1024) : null,
+            image_uploaded_at: new Date().toISOString()
+          })
+          .eq('id', plantRecord.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        
+        console.log('✅ Plant image updated in database');
+        return updatedPlant;
+      } catch (uploadError) {
+        console.error('❌ Error uploading plant image:', uploadError);
+        // VALIDAÇÃO CRÍTICA #2: Falha no upload = falha na criação
+        // Deletar planta sem imagem
         try {
-          console.log('🌱 Uploading plant image...');
-          const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
-          imageUrl = uploadResult.url;
-          
-          console.log('✅ Image uploaded successfully:', imageUrl);
-          
-          // Update plant record with image URL
-          const { data: updatedPlant, error: updateError } = await supabase
+          await supabase
             .from(TABLES.PLANTS)
-            .update({ image_url: imageUrl })
-            .eq('id', plantRecord.id)
-            .select()
-            .single();
-
-          if (updateError) throw updateError;
-          
-          console.log('✅ Plant image updated in database');
-          return updatedPlant;
-        } catch (uploadError) {
-          console.error('❌ Error uploading plant image:', uploadError);
-          // BUG FIX #2: Refetch completo da planta para garantir que image_url seja retornado
-          const { data: plantWithoutImage } = await supabase
-            .from(TABLES.PLANTS)
-            .select()
-            .eq('id', plantRecord.id)
-            .single();
-          
-          // Se houve erro no upload mas a planta foi criada, retorna ela
-          return plantWithoutImage || plantRecord;
+            .delete()
+            .eq('id', plantRecord.id);
+        } catch (deleteError) {
+          console.error('❌ Erro ao deletar planta sem imagem:', deleteError);
         }
+        throw new Error(`Falha ao fazer upload da imagem: ${uploadError.message}`);
       }
-
-      return plantRecord;
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Create Plant'));
     }
