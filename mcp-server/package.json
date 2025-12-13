@@ -1,0 +1,23 @@
+{
+  "name": "planta-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for Planta App - Supabase Database Management",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "mcp",
+    "supabase",
+    "database",
+    "planta"
+  ],
+  "author": "Pedro",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.87.1",
+    "dotenv": "^16.3.1"
+  }
+}

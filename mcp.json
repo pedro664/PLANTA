@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "planta-database": {
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/mcp-server/index.js"
+      ],
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "${env:EXPO_PUBLIC_SUPABASE_URL}",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "${env:EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+      }
+    }
+  }
+}
