@@ -128,7 +128,18 @@ export const plantService = {
         return updatedPlant;
       } catch (uploadError) {
         console.error('❌ Erro ao fazer upload da imagem:', uploadError);
-        
+        // Notificar usuário e logar detalhes
+        try {
+          const { logAndNotifyError } = await import('../utils/errorUtils');
+          logAndNotifyError(uploadError, {
+            context: 'plantService.createPlant.upload',
+            userMessage: 'Não foi possível enviar a imagem da planta. A planta foi removida.',
+            suggestion: 'Tente novamente e verifique sua conexão',
+          });
+        } catch (e) {
+          console.error('Erro ao notificar uploadError:', e);
+        }
+
         // VALIDAÇÃO CRÍTICA #2: Deletar planta se upload falhar
         try {
           await supabase

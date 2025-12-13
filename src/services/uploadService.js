@@ -6,6 +6,7 @@
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import { logAndNotifyError } from '../utils/errorUtils';
 
 // Configuração dos buckets de storage
 const STORAGE_BUCKETS = {
@@ -112,7 +113,11 @@ const prepareImageForUpload = async (imageResult) => {
       };
     }
   } catch (error) {
-    console.error('❌ Erro ao preparar imagem:', error);
+    logAndNotifyError(error, {
+      context: 'uploadService.prepareImageForUpload',
+      userMessage: 'Não foi possível processar a imagem selecionada',
+      suggestion: 'Verifique permissões e tente novamente',
+    });
     throw new Error(`Erro ao preparar imagem para upload: ${error.message}`);
   }
 };
@@ -193,7 +198,11 @@ export const uploadImage = async (imageResult, bucket, folder = '') => {
     };
 
   } catch (error) {
-    console.error('❌ Erro no serviço de upload:', error);
+    logAndNotifyError(error, {
+      context: 'uploadService.uploadImage',
+      userMessage: 'Falha ao enviar a imagem',
+      suggestion: 'Verifique sua conexão ou tente novamente mais tarde',
+    });
     throw error;
   }
 };
@@ -229,14 +238,22 @@ export const deleteImage = async (bucket, path) => {
       .remove([path]);
 
     if (error) {
-      console.error('❌ Erro ao deletar:', error);
+      logAndNotifyError(error, {
+        context: 'uploadService.deleteImage',
+        userMessage: 'Não foi possível remover a imagem',
+        suggestion: 'Tente novamente mais tarde',
+      });
       throw error;
     }
 
     console.log('✅ Imagem deletada:', path);
     return true;
   } catch (error) {
-    console.error('❌ Erro no delete:', error);
+    logAndNotifyError(error, {
+      context: 'uploadService.deleteImage',
+      userMessage: 'Erro ao remover imagem do servidor',
+      suggestion: 'Verifique sua conexão',
+    });
     throw error;
   }
 };
@@ -263,7 +280,11 @@ export const replaceImage = async (imageResult, bucket, oldPath, folder = '') =>
     
     return uploadResult;
   } catch (error) {
-    console.error('❌ Erro ao substituir imagem:', error);
+    logAndNotifyError(error, {
+      context: 'uploadService.replaceImage',
+      userMessage: 'Não foi possível substituir a imagem',
+      suggestion: 'Tente novamente',
+    });
     throw error;
   }
 };

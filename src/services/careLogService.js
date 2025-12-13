@@ -93,6 +93,16 @@ export const careLogService = {
 
       return data;
     } catch (error) {
+      try {
+        const { logAndNotifyError } = await import('../utils/errorUtils');
+        logAndNotifyError(error, {
+          context: 'careLogService.createCareLog',
+          userMessage: 'Erro ao registrar cuidado da planta',
+          suggestion: 'Tente novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar createCareLog error:', e);
+      }
       throw new Error(handleSupabaseError(error, 'Create Care Log'));
     }
   },

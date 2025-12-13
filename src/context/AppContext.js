@@ -10,6 +10,7 @@ import { plantService } from '../services/plantService';
 import { careLogService } from '../services/careLogService';
 import { postService } from '../services/postService';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
+import { logAndNotifyError } from '../utils/errorUtils';
 
 // Create the context
 const AppContext = createContext();
@@ -234,7 +235,15 @@ export const AppProvider = ({ children }) => {
           dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
         }
       } else {
-        showErrorToast('Erro ao carregar dados do usuário');
+        try {
+          logAndNotifyError(error, {
+            context: 'AppContext.loadUserData',
+            userMessage: 'Erro ao carregar dados do usuário',
+            suggestion: 'Tente novamente mais tarde',
+          });
+        } catch (e) {
+          console.error('Erro ao notificar loadUserData fallback:', e);
+        }
       }
     } finally {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
@@ -288,7 +297,15 @@ export const AppProvider = ({ children }) => {
       showSuccessToast('Logout realizado com sucesso!');
     } catch (error) {
       console.error('❌ Error signing out:', error);
-      showErrorToast('Erro ao fazer logout');
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.signOut',
+          userMessage: 'Erro ao encerrar sessão',
+          suggestion: 'Você foi desconectado localmente; faça login novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar signOut error:', e);
+      }
       // Force logout even if there's an error
       setSession(null);
       dispatch({ type: ACTION_TYPES.RESET_STATE });
@@ -340,7 +357,15 @@ export const AppProvider = ({ children }) => {
       return newPlant;
     } catch (error) {
       console.error('❌ Erro ao adicionar planta:', error);
-      showErrorToast(error.message);
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.addPlant',
+          userMessage: 'Erro ao adicionar planta',
+          suggestion: 'Verifique a imagem e tente novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar addPlant error:', e);
+      }
       throw error;
     }
   };
@@ -425,7 +450,15 @@ export const AppProvider = ({ children }) => {
       return newCareLog;
     } catch (error) {
       console.error('❌ Erro ao registrar cuidado:', error);
-      showErrorToast(error.message);
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.addCareLog',
+          userMessage: 'Erro ao registrar cuidado',
+          suggestion: 'Tente novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar addCareLog error:', e);
+      }
       throw error;
     }
   };
@@ -481,7 +514,15 @@ export const AppProvider = ({ children }) => {
       return newPost;
     } catch (error) {
       console.error('❌ Error creating post:', error);
-      showErrorToast(`Erro ao criar post: ${error.message}`);
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.createPost',
+          userMessage: 'Erro ao criar post',
+          suggestion: 'Tente novamente ou verifique sua conexão',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar createPost error:', e);
+      }
       throw error;
     }
   };
