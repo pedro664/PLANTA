@@ -362,17 +362,23 @@ export const AppProvider = ({ children }) => {
       
       dispatch({ type: ACTION_TYPES.ADD_CARE_LOG, payload: newCareLog });
       
-      // Update plant in local state if it was watered
-      if (careData.care_type === 'water') {
-        const plant = getPlantById(plantId);
-        if (plant) {
-          const updatedPlant = {
-            ...plant,
-            last_watered: careData.care_date || new Date().toISOString(),
-            status: 'fine',
-          };
-          dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
-        }
+      // BUG FIX #3: Sempre atualizar care_logs da planta no estado, não só para 'water'
+      const plant = getPlantById(plantId);
+      if (plant) {
+        const updatedPlant = {
+          ...plant,
+          // Adicionar o novo care log ao array de care_logs
+          care_logs: [newCareLog, ...(plant.care_logs || plant.careLogs || [])],
+          // Atualizar last_watered apenas se for rega
+          last_watered: careData.care_type === 'water' 
+            ? (careData.care_date || new Date().toISOString())
+            : plant.last_watered,
+          // Resetar status se for rega
+          status: careData.care_type === 'water' ? 'fine' : plant.status,
+        };
+        
+        console.log('🔄 Updating plant state with care log:', updatedPlant.care_logs?.length);
+        dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
       }
       
       // Add XP for care activity
@@ -381,6 +387,7 @@ export const AppProvider = ({ children }) => {
       showSuccessToast('Cuidado registrado com sucesso!');
       return newCareLog;
     } catch (error) {
+      console.error('❌ Error adding care log:', error);
       showErrorToast(error.message);
       throw error;
     }
@@ -413,9 +420,22 @@ export const AppProvider = ({ children }) => {
 
   const createPost = async (postData) => {
     try {
-      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      // BUG FIX #1: Validação rigorosa de autenticação com session
+      const userId = state.user?.id || session?.user?.id;
+      if (!userId) {
+        console.error('❌ No authenticated user found');
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
       
-      const newPost = await postService.createPost(state.user.id, postData);
+      console.log('📝 Creating post with userId:', userId);
+      const newPost = await postService.createPost(userId, postData);
+      
+      // Verificar se post foi criado com sucesso
+      if (!newPost) {
+        throw new Error('Post não foi criado (retorno vazio do servidor)');
+      }
+      
+      console.log('✅ Post created successfully:', newPost.id);
       
       // Add to local state
       dispatch({ type: ACTION_TYPES.SET_POSTS, payload: [newPost, ...state.posts] });
@@ -424,7 +444,7 @@ export const AppProvider = ({ children }) => {
       return newPost;
     } catch (error) {
       console.error('❌ Error creating post:', error);
-      showErrorToast('Erro ao criar post');
+      showErrorToast(`Erro ao criar post: ${error.message}`);
       throw error;
     }
   };

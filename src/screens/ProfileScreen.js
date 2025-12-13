@@ -7,7 +7,8 @@ import {
   Image,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 // Temporarily disabled reanimated for compatibility
 // import Animated, {
@@ -33,6 +34,20 @@ const ProfileScreen = ({ navigation }) => {
   const { user, plants, updateUser, signOut } = useAppContext();
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
+
+  // BUG FIX #4: Guard clause para prevenir null reference quando user é resetado durante logout
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={[styles.scrollView, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator 
+            size="large" 
+            color={colors.botanical.clay} 
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // Level thresholds and helper functions - exactly like the original
   const levelThresholds = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5200];

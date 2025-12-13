@@ -96,6 +96,8 @@ export const plantService = {
           const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
           imageUrl = uploadResult.url;
           
+          console.log('✅ Image uploaded successfully:', imageUrl);
+          
           // Update plant record with image URL
           const { data: updatedPlant, error: updateError } = await supabase
             .from(TABLES.PLANTS)
@@ -105,11 +107,20 @@ export const plantService = {
             .single();
 
           if (updateError) throw updateError;
+          
+          console.log('✅ Plant image updated in database');
           return updatedPlant;
         } catch (uploadError) {
           console.error('❌ Error uploading plant image:', uploadError);
-          // Return plant without image rather than failing completely
-          return plantRecord;
+          // BUG FIX #2: Refetch completo da planta para garantir que image_url seja retornado
+          const { data: plantWithoutImage } = await supabase
+            .from(TABLES.PLANTS)
+            .select()
+            .eq('id', plantRecord.id)
+            .single();
+          
+          // Se houve erro no upload mas a planta foi criada, retorna ela
+          return plantWithoutImage || plantRecord;
         }
       }
 
