@@ -37,15 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # Android
-android/app/build/
-android/build/
-android/.gradle/
-android/local.properties
-android/app/release/
-android/app/debug/
-android/gradle/
-android/gradlew
-android/gradlew.bat
+/android/
 
 # iOS
 ios/build/
