@@ -183,6 +183,13 @@ export const postService = {
       if (postData.imageFile) {
         try {
           console.log('📸 Uploading post image...');
+          console.log('📸 imageFile:', JSON.stringify({
+            hasUri: !!postData.imageFile?.uri,
+            uri: postData.imageFile?.uri?.substring(0, 100),
+            type: postData.imageFile?.type,
+            width: postData.imageFile?.width,
+            height: postData.imageFile?.height,
+          }));
           const uploadResult = await uploadPostImage(postData.imageFile, postRecord.id);
           imageUrl = uploadResult.url;
           

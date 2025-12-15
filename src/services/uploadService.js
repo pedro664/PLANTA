@@ -1,208 +1,182 @@
 /**
  * Upload Service para Supabase Storage
- * Otimizado para funcionar com fotos reais do celular (Android/iOS)
+ * VERSÃO SIMPLIFICADA E ROBUSTA para Android/iOS
  */
 
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import { logAndNotifyError } from '../utils/errorUtils';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // Configuração dos buckets de storage
-const STORAGE_BUCKETS = {
+export const STORAGE_BUCKETS = {
   PLANTS: 'plant-images',
   POSTS: 'post-images',
   AVATARS: 'avatars'
 };
 
 /**
- * Converte imagem para formato pronto para upload
- * Funciona com:
- * - URI local (camera/galeria do celular)
- * - Blob (web)
- * - Base64
+ * Decodifica base64 para Uint8Array (compatível com React Native)
  */
-const prepareImageForUpload = async (imageResult) => {
-  if (!imageResult) return null;
-
-  try {
-    console.log('🔍 Preparando imagem para upload...', {
-      hasUri: !!imageResult.uri,
-      hasFile: !!imageResult.file,
-      hasBase64: !!imageResult.base64,
-      platform: Platform.OS,
-    });
-
-    // Para web
-    if (Platform.OS === 'web') {
-      // File object direto (web)
-      if (imageResult.file instanceof File) {
-        return {
-          file: imageResult.file,
-          type: imageResult.file.type || 'image/jpeg',
-          name: imageResult.file.name || `image_${Date.now()}.jpg`
-        };
-      }
-      
-      // Blob (web)
-      if (imageResult instanceof Blob) {
-        return {
-          file: imageResult,
-          type: imageResult.type || 'image/jpeg',
-          name: `image_${Date.now()}.jpg`
-        };
-      }
-      
-      // Base64 (web)
-      if (imageResult.base64) {
-        const byteCharacters = atob(imageResult.base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: imageResult.type || 'image/jpeg' });
-        
-        return {
-          file: blob,
-          type: imageResult.type || 'image/jpeg',
-          name: `image_${Date.now()}.jpg`
-        };
-      }
-    } else {
-      // Para mobile (Android/iOS) - usar URI local
-      if (!imageResult.uri) {
-        throw new Error('URI da imagem não encontrada. Selecione uma foto novamente.');
-      }
-
-      console.log('📱 Processando imagem mobile:', imageResult.uri);
-
-      // Ler arquivo do sistema de arquivos
-      let fileData;
-      
-      try {
-        // Tentar ler como base64 primeiro
-        fileData = await FileSystem.readAsStringAsync(imageResult.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        console.log('✅ Arquivo lido com sucesso. Tamanho base64:', fileData.length);
-      } catch (readError) {
-        console.error('❌ Erro ao ler arquivo:', readError);
-        // Se falhar, tentar alternativa
-        throw new Error(`Não consegui ler a foto: ${readError.message}`);
-      }
-
-      // Converter base64 para blob
-      const byteCharacters = atob(fileData);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
-
-      console.log('📦 Blob criado. Tamanho:', blob.size, 'bytes');
-
-      return {
-        file: blob,
-        type: 'image/jpeg',
-        name: `image_${Date.now()}.jpg`,
-        size: blob.size,
-        uri: imageResult.uri
-      };
-    }
-  } catch (error) {
-    logAndNotifyError(error, {
-      context: 'uploadService.prepareImageForUpload',
-      userMessage: 'Não foi possível processar a imagem selecionada',
-      suggestion: 'Verifique permissões e tente novamente',
-    });
-    throw new Error(`Erro ao preparar imagem para upload: ${error.message}`);
+const base64ToUint8Array = (base64String) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) {
+    lookup[chars.charCodeAt(i)] = i;
   }
+
+  // Remover whitespace e padding
+  const base64 = base64String.replace(/[\s]/g, '');
+  const len = base64.length;
+  
+  // Calcular tamanho real (sem padding)
+  let bufferLength = Math.floor(len * 3 / 4);
+  if (base64[len - 1] === '=') bufferLength--;
+  if (base64[len - 2] === '=') bufferLength--;
+
+  const bytes = new Uint8Array(bufferLength);
+  let p = 0;
+
+  for (let i = 0; i < len; i += 4) {
+    const c1 = base64.charCodeAt(i);
+    const c2 = base64.charCodeAt(i + 1);
+    const c3 = base64.charCodeAt(i + 2);
+    const c4 = base64.charCodeAt(i + 3);
+
+    const e1 = lookup[c1];
+    const e2 = lookup[c2];
+    const e3 = base64[i + 2] === '=' ? 0 : lookup[c3];
+    const e4 = base64[i + 3] === '=' ? 0 : lookup[c4];
+
+    bytes[p++] = (e1 << 2) | (e2 >> 4);
+    if (base64[i + 2] !== '=') {
+      bytes[p++] = ((e2 & 15) << 4) | (e3 >> 2);
+    }
+    if (base64[i + 3] !== '=') {
+      bytes[p++] = ((e3 & 3) << 6) | e4;
+    }
+  }
+
+  return bytes;
 };
 
 /**
- * Faz upload de imagem para Supabase Storage
- * Otimizado para mobile e web
+ * Upload de imagem para Supabase Storage
+ * @param {Object} imageData - Objeto com uri da imagem (do expo-image-picker)
+ * @param {string} bucket - Nome do bucket
+ * @param {string} folder - Pasta dentro do bucket
  */
-export const uploadImage = async (imageResult, bucket, folder = '') => {
+export const uploadImage = async (imageData, bucket, folder = '') => {
+  console.log('🚀 [uploadImage] Iniciando upload...', { bucket, folder, platform: Platform.OS });
+
   try {
-    if (!imageResult) {
+    // Validar entrada
+    if (!imageData) {
       throw new Error('Nenhuma imagem fornecida');
     }
 
-    console.log('🚀 Iniciando upload de imagem...', { bucket, folder });
-
-    // Preparar imagem para upload
-    const preparedImage = await prepareImageForUpload(imageResult);
-    if (!preparedImage) {
-      throw new Error('Erro ao preparar imagem. Selecione uma foto novamente.');
+    // Extrair URI
+    const uri = imageData.uri || imageData;
+    if (!uri || typeof uri !== 'string') {
+      throw new Error('URI da imagem inválida');
     }
 
-    // Validar tamanho (máximo 10MB)
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-    if (preparedImage.file.size > MAX_SIZE) {
-      throw new Error(`Imagem muito grande (máximo 10MB, você enviou ${(preparedImage.file.size / 1024 / 1024).toFixed(2)}MB)`);
+    console.log('📸 [uploadImage] URI:', uri.substring(0, 100) + '...');
+
+    // Verificar autenticação
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Usuário não autenticado. Faça login para enviar imagens.');
     }
+    console.log('👤 [uploadImage] Usuário:', user.id);
 
-    // Gerar nome único
-    const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 15);
-    const fileExtension = 'jpg';
-    const fileName = `${folder ? folder + '/' : ''}${timestamp}_${randomId}.${fileExtension}`;
-
-    console.log('📁 Enviando arquivo:', { bucket, fileName, size: `${(preparedImage.file.size / 1024).toFixed(2)}KB` });
-
-    // Fazer upload
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, preparedImage.file, {
-        contentType: 'image/jpeg',
-        upsert: false,
-        cacheControl: '3600',
-      });
-
-    if (error) {
-      console.error('❌ Erro no upload:', error);
+    // Ler arquivo como base64
+    let base64Data;
+    try {
+      console.log('📖 [uploadImage] Lendo arquivo...');
+      console.log('📖 [uploadImage] URI completa:', uri);
       
-      // Mensagens de erro mais específicas
-      if (error.message.includes('storage object not found')) {
-        throw new Error('Bucket não encontrado. Verifique as configurações de storage.');
-      } else if (error.message.includes('permission')) {
-        throw new Error('Sem permissão para fazer upload. Verifique as políticas de RLS.');
+      // Verificar se o arquivo existe
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      console.log('📖 [uploadImage] File info:', JSON.stringify(fileInfo));
+      
+      if (!fileInfo.exists) {
+        throw new Error('Arquivo não encontrado: ' + uri);
       }
       
-      throw new Error(`Erro ao fazer upload: ${error.message}`);
+      base64Data = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      if (!base64Data || base64Data.length === 0) {
+        throw new Error('Arquivo vazio ou não pôde ser lido');
+      }
+      
+      console.log('✅ [uploadImage] Arquivo lido. Tamanho base64:', base64Data.length);
+    } catch (readError) {
+      console.error('❌ [uploadImage] Erro ao ler arquivo:', readError);
+      console.error('❌ [uploadImage] Stack:', readError.stack);
+      throw new Error(`Não foi possível ler a imagem: ${readError.message}`);
     }
 
-    console.log('✅ Upload bem-sucedido:', data);
+    // Converter base64 para bytes
+    console.log('🔄 [uploadImage] Convertendo base64 para bytes...');
+    const bytes = base64ToUint8Array(base64Data);
+    console.log('✅ [uploadImage] Bytes criados:', bytes.length);
+
+    // Validar tamanho (máximo 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (bytes.length > MAX_SIZE) {
+      throw new Error(`Imagem muito grande (${(bytes.length / 1024 / 1024).toFixed(2)}MB). Máximo: 10MB`);
+    }
+
+    // Gerar nome único para o arquivo
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const fileName = folder 
+      ? `${folder}/${timestamp}_${randomId}.jpg`
+      : `${timestamp}_${randomId}.jpg`;
+
+    console.log('📁 [uploadImage] Nome do arquivo:', fileName);
+
+    // Fazer upload para Supabase
+    console.log('⬆️ [uploadImage] Enviando para Supabase Storage...');
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, bytes.buffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('❌ [uploadImage] Erro no upload:', uploadError);
+      throw new Error(`Erro no upload: ${uploadError.message}`);
+    }
+
+    console.log('✅ [uploadImage] Upload concluído:', uploadData);
 
     // Obter URL pública
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(fileName);
 
-    if (!urlData?.publicUrl) {
-      throw new Error('Erro ao gerar URL da imagem');
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      throw new Error('Não foi possível gerar URL pública');
     }
 
-    console.log('🔗 URL gerada:', urlData.publicUrl);
+    console.log('🔗 [uploadImage] URL pública:', publicUrl);
 
     return {
+      url: publicUrl,
       path: fileName,
-      url: urlData.publicUrl,
       bucket: bucket,
-      size: preparedImage.file.size,
+      size: bytes.length,
       uploadedAt: new Date().toISOString()
     };
 
   } catch (error) {
-    logAndNotifyError(error, {
-      context: 'uploadService.uploadImage',
-      userMessage: 'Falha ao enviar a imagem',
-      suggestion: 'Verifique sua conexão ou tente novamente mais tarde',
-    });
+    console.error('❌ [uploadImage] ERRO FATAL:', error);
     throw error;
   }
 };
@@ -210,22 +184,25 @@ export const uploadImage = async (imageResult, bucket, folder = '') => {
 /**
  * Upload de foto de planta
  */
-export const uploadPlantImage = async (imageResult, plantId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.PLANTS, `plants/${plantId}`);
+export const uploadPlantImage = async (imageData, plantId) => {
+  console.log('🌱 [uploadPlantImage] Plant ID:', plantId);
+  return uploadImage(imageData, STORAGE_BUCKETS.PLANTS, `plants/${plantId}`);
 };
 
 /**
  * Upload de foto de post
  */
-export const uploadPostImage = async (imageResult, postId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.POSTS, `posts/${postId}`);
+export const uploadPostImage = async (imageData, postId) => {
+  console.log('📝 [uploadPostImage] Post ID:', postId);
+  return uploadImage(imageData, STORAGE_BUCKETS.POSTS, `posts/${postId}`);
 };
 
 /**
  * Upload de avatar
  */
-export const uploadAvatarImage = async (imageResult, userId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.AVATARS, `users/${userId}`);
+export const uploadAvatarImage = async (imageData, userId) => {
+  console.log('👤 [uploadAvatarImage] User ID:', userId);
+  return uploadImage(imageData, STORAGE_BUCKETS.AVATARS, `users/${userId}`);
 };
 
 /**
@@ -238,22 +215,14 @@ export const deleteImage = async (bucket, path) => {
       .remove([path]);
 
     if (error) {
-      logAndNotifyError(error, {
-        context: 'uploadService.deleteImage',
-        userMessage: 'Não foi possível remover a imagem',
-        suggestion: 'Tente novamente mais tarde',
-      });
+      console.error('❌ [deleteImage] Erro:', error);
       throw error;
     }
 
-    console.log('✅ Imagem deletada:', path);
+    console.log('✅ [deleteImage] Imagem deletada:', path);
     return true;
   } catch (error) {
-    logAndNotifyError(error, {
-      context: 'uploadService.deleteImage',
-      userMessage: 'Erro ao remover imagem do servidor',
-      suggestion: 'Verifique sua conexão',
-    });
+    console.error('❌ [deleteImage] Erro ao deletar:', error);
     throw error;
   }
 };
@@ -261,30 +230,33 @@ export const deleteImage = async (bucket, path) => {
 /**
  * Substitui imagem existente
  */
-export const replaceImage = async (imageResult, bucket, oldPath, folder = '') => {
+export const replaceImage = async (imageData, bucket, oldPath, folder = '') => {
   try {
     // Fazer upload da nova imagem
-    const uploadResult = await uploadImage(imageResult, bucket, folder);
+    const uploadResult = await uploadImage(imageData, bucket, folder);
     
-    // Deletar imagem antiga se não for URL externa
+    // Tentar deletar imagem antiga (não falhar se não conseguir)
     if (oldPath && !oldPath.includes('unsplash') && !oldPath.includes('placeholder')) {
       try {
-        const pathParts = oldPath.split('/');
-        const fileName = pathParts[pathParts.length - 1];
-        await deleteImage(bucket, `${folder}/${fileName}`);
+        // Extrair path do URL se necessário
+        let pathToDelete = oldPath;
+        if (oldPath.includes('supabase.co')) {
+          const urlParts = oldPath.split('/storage/v1/object/public/');
+          if (urlParts[1]) {
+            const bucketAndPath = urlParts[1].split('/');
+            bucketAndPath.shift(); // Remove bucket name
+            pathToDelete = bucketAndPath.join('/');
+          }
+        }
+        await deleteImage(bucket, pathToDelete);
       } catch (deleteError) {
-        console.warn('⚠️ Não consegui deletar imagem antiga:', deleteError);
-        // Não falhar o processo se delete falhar
+        console.warn('⚠️ [replaceImage] Não conseguiu deletar imagem antiga:', deleteError);
       }
     }
     
     return uploadResult;
   } catch (error) {
-    logAndNotifyError(error, {
-      context: 'uploadService.replaceImage',
-      userMessage: 'Não foi possível substituir a imagem',
-      suggestion: 'Tente novamente',
-    });
+    console.error('❌ [replaceImage] Erro:', error);
     throw error;
   }
 };

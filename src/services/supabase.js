@@ -6,16 +6,24 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Supabase configuration from environment variables
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+// Supabase configuration - hardcoded for build compatibility
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vmwuxstyiurspttffykt.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtd3V4c3R5aXVyc3B0dGZmeWt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNDU5NjAsImV4cCI6MjA4MDkyMTk2MH0.X2EmLwowSPitPRg4xp833Tome9CQBHqZD8VXSbbM0so';
 
+// Log warning instead of throwing error to prevent app crash
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+  console.warn('⚠️ Missing Supabase environment variables. App will run in offline mode.');
 }
 
 // Create Supabase client with AsyncStorage for session persistence
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Use dummy values if env vars are missing to prevent crash
+const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const safeKey = supabaseAnonKey || 'placeholder-key';
+
+console.log('🔗 Supabase URL:', safeUrl);
+console.log('🔑 Supabase Key configured:', safeKey ? 'Yes' : 'No');
+
+export const supabase = createClient(safeUrl, safeKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
@@ -23,6 +31,26 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Flag to check if Supabase is properly configured
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes('REDACTED'));
+
+// Test connection function for debugging
+export const testConnection = async () => {
+  try {
+    console.log('🧪 Testing Supabase connection...');
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('❌ Connection test failed:', error.message);
+      return { success: false, error: error.message };
+    }
+    console.log('✅ Connection test successful');
+    return { success: true, session: data.session };
+  } catch (err) {
+    console.error('❌ Connection test error:', err);
+    return { success: false, error: err.message };
+  }
+};
 
 // Database table names
 export const TABLES = {
@@ -37,7 +65,7 @@ export const TABLES = {
 // Helper function to handle Supabase errors
 export const handleSupabaseError = (error, context = '') => {
   console.error(`Supabase Error ${context}:`, error);
-  
+
   if (error?.message) {
     // Common error messages
     if (error.message.includes('JWT expired')) {
@@ -55,10 +83,10 @@ export const handleSupabaseError = (error, context = '') => {
     if (error.message.includes('Network request failed')) {
       return 'Erro de conexão. Verifique sua internet.';
     }
-    
+
     return error.message;
   }
-  
+
   return 'Erro desconhecido. Tente novamente.';
 };
 
@@ -87,9 +115,9 @@ export const authHelpers = {
           emailRedirectTo: undefined, // Disable email redirect
         },
       });
-      
+
       if (error) throw error;
-      
+
       // If user is created but session is null, it means email confirmation is required
       // We'll handle this by auto-signing in after signup
       if (data.user && !data.session) {
@@ -106,7 +134,7 @@ export const authHelpers = {
           console.log('Auto sign-in after signup failed, email confirmation may be required');
         }
       }
-      
+
       return { user: data.user, session: data.session };
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Sign Up'));
@@ -120,7 +148,7 @@ export const authHelpers = {
         email,
         password,
       });
-      
+
       if (error) throw error;
       return { user: data.user, session: data.session };
     } catch (error) {

@@ -37,7 +37,7 @@ const CommunityScreen = ({ navigation }) => {
   // Preload images for better performance
   useEffect(() => {
     const preloadPostImages = async () => {
-      const imageUrls = posts.slice(0, 10).map(post => post.image);
+      const imageUrls = posts.slice(0, 10).map(post => post.image_url);
       await preloadImages(imageUrls);
     };
     

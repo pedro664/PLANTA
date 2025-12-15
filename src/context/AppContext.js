@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
-import { supabase, authHelpers } from '../services/supabase';
+import { supabase, authHelpers, isSupabaseConfigured } from '../services/supabase';
 import { userService } from '../services/userService';
 import { plantService } from '../services/plantService';
 import { careLogService } from '../services/careLogService';
@@ -106,9 +106,16 @@ export const AppProvider = ({ children }) => {
   // Initialize auth listener
   useEffect(() => {
     console.log('🔐 Starting auth initialization...');
+    console.log('📡 Supabase configured:', isSupabaseConfigured);
     
     // Set authenticated to false immediately to allow app to load
     dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: false });
+    
+    // Skip Supabase if not configured
+    if (!isSupabaseConfigured) {
+      console.log('⚠️ Supabase not configured, running in offline mode');
+      return;
+    }
     
     const initializeAuth = async () => {
       try {
@@ -274,14 +281,24 @@ export const AppProvider = ({ children }) => {
     try {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
       
+      console.log('🔐 Tentando login com:', email);
       const { user } = await authHelpers.signIn(email, password);
       
       if (user) {
+        console.log('✅ Login bem sucedido:', user.id);
         showSuccessToast('Login realizado com sucesso!');
         return user;
       }
     } catch (error) {
-      showErrorToast(error.message);
+      console.error('❌ Erro no login:', error);
+      // Mensagem mais amigável baseada no tipo de erro
+      let errorMsg = error.message || 'Erro ao fazer login';
+      if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        errorMsg = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (errorMsg.includes('Invalid') || errorMsg.includes('credentials')) {
+        errorMsg = 'Email ou senha incorretos.';
+      }
+      showErrorToast(errorMsg);
       throw error;
     } finally {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
@@ -340,9 +357,10 @@ export const AppProvider = ({ children }) => {
         throw new Error('Selecione uma imagem para a planta');
       }
       
-      // VALIDAÇÃO: Verificar tamanho da imagem
-      const MAX_SIZE_MB = 5;
-      if (plantData.imageFile.size > MAX_SIZE_MB * 1024 * 1024) {
+      // VALIDAÇÃO: Verificar tamanho da imagem (se disponível)
+      const MAX_SIZE_MB = 10;
+      const fileSize = plantData.imageFile.fileSize || plantData.imageFile.size || 0;
+      if (fileSize > 0 && fileSize > MAX_SIZE_MB * 1024 * 1024) {
         throw new Error(`Imagem muito grande (máximo ${MAX_SIZE_MB}MB)`);
       }
       

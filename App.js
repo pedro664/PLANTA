@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,9 +20,19 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { ToastComponent } from './src/components/Toast';
 import OfflineIndicator from './src/components/OfflineIndicator';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+// Esconder splash imediatamente ao iniciar
+SplashScreen.preventAutoHideAsync()
+  .then(() => {
+    // Esconder após 1 segundo no máximo
+    setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 1000);
+  })
+  .catch(() => {});
 
 export default function App() {
+  const [appReady, setAppReady] = useState(false);
+  
   const [fontsLoaded] = useFonts({
     'Overlock-Regular': Overlock_400Regular,
     'Overlock-Italic': Overlock_400Regular_Italic,
@@ -32,28 +42,27 @@ export default function App() {
     'Overlock-BlackItalic': Overlock_900Black_Italic,
   });
 
-  const onLayoutRootView = useCallback(async () => {
+  useEffect(() => {
+    // Marcar app como pronto imediatamente ou após fontes
+    const timer = setTimeout(() => {
+      setAppReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 500);
+
     if (fontsLoaded) {
-      await SplashScreen.hideAsync().catch(() => {});
+      setAppReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+      clearTimeout(timer);
     }
+
+    return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
-  // Don't block the app if fonts fail to load - use system fonts as fallback
-  const shouldRender = fontsLoaded || true; // Always render after 3 seconds
-
-  if (!shouldRender) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F5F0' }}>
-        <ActivityIndicator size="large" color="#2E4A3D" />
-        <Text style={{ marginTop: 10, color: '#2E4A3D' }}>Carregando...</Text>
-      </View>
-    );
-  }
-
+  // Sempre renderizar o app - não bloquear por fontes
   return (
     <SimpleErrorBoundary>
       <SafeAreaProvider>
-        <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
           <AppProvider>
             <AppNavigator />
             <OfflineIndicator />

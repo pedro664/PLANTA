@@ -104,6 +104,13 @@ export const plantService = {
       // Fazer upload da imagem (OBRIGATÓRIO agora)
       try {
         console.log('📸 Iniciando upload da imagem...');
+        console.log('📸 imageFile:', JSON.stringify({
+          hasUri: !!plantData.imageFile?.uri,
+          uri: plantData.imageFile?.uri?.substring(0, 100),
+          type: plantData.imageFile?.type,
+          width: plantData.imageFile?.width,
+          height: plantData.imageFile?.height,
+        }));
         const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
         imageUrl = uploadResult.url;
         

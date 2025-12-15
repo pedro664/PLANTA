@@ -1,4 +1,85 @@
-import { DatabaseService, StorageService, AuthService } from './supabase';
+import { supabase, authHelpers, TABLES } from './supabase';
+import { StorageService } from './storageService';
+
+// Criar serviços compatíveis com o código existente
+const AuthService = {
+  getCurrentUser: authHelpers.getCurrentUser
+};
+
+const DatabaseService = {
+  getUserProfile: async (userId) => {
+    const { data, error } = await supabase.from(TABLES.USERS).select('*').eq('id', userId).single();
+    if (error) throw error;
+    return data;
+  },
+  createUser: async (userData) => {
+    const { data, error } = await supabase.from(TABLES.USERS).insert([userData]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  getUserPlants: async (userId) => {
+    const { data, error } = await supabase.from(TABLES.PLANTS).select('*, care_logs(*)').eq('user_id', userId);
+    if (error) throw error;
+    return data || [];
+  },
+  getPlantById: async (plantId) => {
+    const { data, error } = await supabase.from(TABLES.PLANTS).select('*, care_logs(*)').eq('id', plantId).single();
+    if (error) throw error;
+    return data;
+  },
+  createPlant: async (plantData) => {
+    const { data, error } = await supabase.from(TABLES.PLANTS).insert([plantData]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  updatePlant: async (plantId, updates) => {
+    const { data, error } = await supabase.from(TABLES.PLANTS).update(updates).eq('id', plantId).select().single();
+    if (error) throw error;
+    return data;
+  },
+  createCareLog: async (careLogData) => {
+    const { data, error } = await supabase.from(TABLES.CARE_LOGS).insert([careLogData]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  createPost: async (postData) => {
+    const { data, error } = await supabase.from(TABLES.POSTS).insert([postData]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  getCommunityPosts: async (category, limit, offset) => {
+    let query = supabase.from(TABLES.POSTS).select('*, users(*), plants(*)').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    if (category !== 'all') query = query.eq('category', category);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+  getPostComments: async (postId) => {
+    const { data, error } = await supabase.from(TABLES.COMMENTS).select('*, users(*)').eq('post_id', postId);
+    if (error) throw error;
+    return data || [];
+  },
+  toggleLike: async (postId, userId) => {
+    const { data: existing } = await supabase.from(TABLES.LIKES).select('id').eq('post_id', postId).eq('user_id', userId).single();
+    if (existing) {
+      await supabase.from(TABLES.LIKES).delete().eq('id', existing.id);
+      return { liked: false };
+    } else {
+      await supabase.from(TABLES.LIKES).insert([{ post_id: postId, user_id: userId }]);
+      return { liked: true };
+    }
+  },
+  updateUserProfile: async (userId, updates) => {
+    const { data, error } = await supabase.from(TABLES.USERS).update(updates).eq('id', userId).select().single();
+    if (error) throw error;
+    return data;
+  },
+  getPublicPlants: async () => {
+    const { data, error } = await supabase.from(TABLES.PLANTS).select('*, users(*)').eq('is_public', true);
+    if (error) throw error;
+    return data || [];
+  }
+};
 
 // Higher-level database operations that combine multiple service calls
 export const PlantaDatabase = {
