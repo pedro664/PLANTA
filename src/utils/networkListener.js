@@ -84,8 +84,14 @@ export const getCurrentNetworkState = async () => {
  * @returns {Promise<boolean>} True if online, false if offline
  */
 export const isOnline = async () => {
-  const state = await getCurrentNetworkState();
-  return !state.isOffline;
+  try {
+    const state = await NetInfo.fetch();
+    // Considerar online se isConnected for true (isInternetReachable pode ser null)
+    return state.isConnected === true;
+  } catch (error) {
+    console.warn('Error checking network:', error);
+    return true; // Assume online em caso de erro
+  }
 };
 
 /**

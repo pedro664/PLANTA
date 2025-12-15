@@ -7,6 +7,29 @@ import { supabase, TABLES, handleSupabaseError } from './supabase';
 import { uploadAvatarImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
 
 export const userService = {
+  // MELHORIA #3: Sincronizar perfil do usuário com auth.users
+  syncUserProfile: async (userId, userData) => {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.USERS)
+        .upsert({
+          id: userId,
+          name: userData?.name || 'Usuário',
+          email: userData?.email || '',
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      console.log('✅ User profile synced:', data?.id);
+      return data;
+    } catch (error) {
+      console.error('❌ Error syncing user profile:', error);
+      throw new Error(handleSupabaseError(error, 'Sync User Profile'));
+    }
+  },
+
   // Get user profile by ID
   getUserProfile: async (userId) => {
     try {

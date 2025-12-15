@@ -14,7 +14,8 @@ const OfflineIndicator = () => {
   useEffect(() => {
     // Subscribe to network state updates
     const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOffline(!state.isConnected);
+      // Só mostrar offline se isConnected for explicitamente false
+      setIsOffline(state.isConnected === false);
     });
 
     return () => {

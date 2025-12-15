@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase';
 import { uploadPostImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
+import { logAndNotifyError } from '../utils/errorUtils';
 
 export const postService = {
   /**
@@ -182,6 +183,13 @@ export const postService = {
       if (postData.imageFile) {
         try {
           console.log('📸 Uploading post image...');
+          console.log('📸 imageFile:', JSON.stringify({
+            hasUri: !!postData.imageFile?.uri,
+            uri: postData.imageFile?.uri?.substring(0, 100),
+            type: postData.imageFile?.type,
+            width: postData.imageFile?.width,
+            height: postData.imageFile?.height,
+          }));
           const uploadResult = await uploadPostImage(postData.imageFile, postRecord.id);
           imageUrl = uploadResult.url;
           
@@ -209,6 +217,11 @@ export const postService = {
           return updatedPost;
         } catch (uploadError) {
           console.error('❌ Error uploading post image:', uploadError);
+          logAndNotifyError(uploadError, {
+            context: 'postService.createPost.upload',
+            userMessage: 'Não foi possível enviar a imagem do post. O post foi criado sem imagem.',
+            suggestion: 'Tente novamente ou verifique sua conexão',
+          });
           // Return post without image rather than failing completely
           const { data: postWithoutImage } = await supabase
             .from('posts')
@@ -253,6 +266,11 @@ export const postService = {
       return finalPost;
     } catch (error) {
       console.error('Erro ao criar post:', error);
+      logAndNotifyError(error, {
+        context: 'postService.createPost',
+        userMessage: 'Erro ao criar post',
+        suggestion: 'Tente novamente mais tarde',
+      });
       throw error;
     }
   },

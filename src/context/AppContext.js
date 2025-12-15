@@ -4,12 +4,13 @@
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
-import { supabase, authHelpers } from '../services/supabase';
+import { supabase, authHelpers, isSupabaseConfigured } from '../services/supabase';
 import { userService } from '../services/userService';
 import { plantService } from '../services/plantService';
 import { careLogService } from '../services/careLogService';
 import { postService } from '../services/postService';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
+import { logAndNotifyError } from '../utils/errorUtils';
 
 // Create the context
 const AppContext = createContext();
@@ -105,9 +106,16 @@ export const AppProvider = ({ children }) => {
   // Initialize auth listener
   useEffect(() => {
     console.log('🔐 Starting auth initialization...');
+    console.log('📡 Supabase configured:', isSupabaseConfigured);
     
     // Set authenticated to false immediately to allow app to load
     dispatch({ type: ACTION_TYPES.SET_AUTHENTICATED, payload: false });
+    
+    // Skip Supabase if not configured
+    if (!isSupabaseConfigured) {
+      console.log('⚠️ Supabase not configured, running in offline mode');
+      return;
+    }
     
     const initializeAuth = async () => {
       try {
@@ -164,48 +172,60 @@ export const AppProvider = ({ children }) => {
   // Load user data
   const loadUserData = async (userId) => {
     try {
-      console.log('📊 Loading user data for:', userId);
+      console.log('📊 Carregando dados do usuário:', userId);
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
 
+      // MELHORIA #3: Sincronizar usuário primeiro
+      console.log('👤 Sincronizando perfil de usuário...');
+      try {
+        const syncedUser = await userService.syncUserProfile(userId, {
+          name: session?.user?.user_metadata?.name || 'Usuário',
+          email: session?.user?.email || '',
+        });
+        console.log('✅ Perfil sincronizado:', syncedUser?.name);
+      } catch (syncError) {
+        console.warn('⚠️ Erro ao sincronizar perfil (continuando):', syncError);
+      }
+
       // Load user profile
-      console.log('👤 Loading user profile...');
+      console.log('👤 Carregando perfil do usuário...');
       const userProfile = await userService.getUserProfile(userId);
-      console.log('✅ User profile loaded:', userProfile?.name);
+      console.log('✅ Perfil carregado:', userProfile?.name);
       dispatch({ type: ACTION_TYPES.SET_USER, payload: userProfile });
 
       // Load user plants
-      console.log('🌱 Loading user plants...');
+      console.log('🌱 Carregando plantas do usuário...');
       const plants = await plantService.getUserPlants(userId);
-      console.log('✅ Plants loaded:', plants?.length || 0);
+      console.log('✅ Plantas carregadas:', plants?.length || 0);
       dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: plants || [] });
 
       // Load recent care logs
-      console.log('📝 Loading care logs...');
+      console.log('📝 Carregando histórico de cuidados...');
       const careLogs = await careLogService.getUserCareLogs(userId, 50);
-      console.log('✅ Care logs loaded:', careLogs?.length || 0);
+      console.log('✅ Histórico carregado:', careLogs?.length || 0);
       dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: careLogs || [] });
 
-      console.log('🎉 User data loading complete!');
+      console.log('🎉 Dados do usuário carregados com sucesso!');
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
+      console.error('❌ Erro ao carregar dados do usuário:', error);
       
       // If user profile doesn't exist, create one
       if (error.message.includes('No rows returned') || 
           error.message.includes('null') || 
           error.message.includes('Cannot coerce the result to a single JSON object') ||
           error.message.includes('The result contains 0 rows')) {
-        console.log('🔧 Creating user profile...');
+        console.log('🔧 Criando novo perfil de usuário...');
         try {
           const newUserProfile = await userService.createUserProfile(userId, {
             name: session?.user?.user_metadata?.name || 'Usuário',
             email: session?.user?.email || '',
           });
-          console.log('✅ User profile created:', newUserProfile?.name);
+          console.log('✅ Perfil criado:', newUserProfile?.name);
           dispatch({ type: ACTION_TYPES.SET_USER, payload: newUserProfile });
           dispatch({ type: ACTION_TYPES.SET_PLANTS, payload: [] });
           dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
         } catch (createError) {
-          console.error('❌ Error creating user profile:', createError);
+          console.error('❌ Erro ao criar perfil:', createError);
           // If creation fails, use a basic user object
           const basicUser = {
             id: userId,
@@ -222,7 +242,15 @@ export const AppProvider = ({ children }) => {
           dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: [] });
         }
       } else {
-        showErrorToast('Erro ao carregar dados do usuário');
+        try {
+          logAndNotifyError(error, {
+            context: 'AppContext.loadUserData',
+            userMessage: 'Erro ao carregar dados do usuário',
+            suggestion: 'Tente novamente mais tarde',
+          });
+        } catch (e) {
+          console.error('Erro ao notificar loadUserData fallback:', e);
+        }
       }
     } finally {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
@@ -253,14 +281,24 @@ export const AppProvider = ({ children }) => {
     try {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
       
+      console.log('🔐 Tentando login com:', email);
       const { user } = await authHelpers.signIn(email, password);
       
       if (user) {
+        console.log('✅ Login bem sucedido:', user.id);
         showSuccessToast('Login realizado com sucesso!');
         return user;
       }
     } catch (error) {
-      showErrorToast(error.message);
+      console.error('❌ Erro no login:', error);
+      // Mensagem mais amigável baseada no tipo de erro
+      let errorMsg = error.message || 'Erro ao fazer login';
+      if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        errorMsg = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (errorMsg.includes('Invalid') || errorMsg.includes('credentials')) {
+        errorMsg = 'Email ou senha incorretos.';
+      }
+      showErrorToast(errorMsg);
       throw error;
     } finally {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
@@ -276,7 +314,15 @@ export const AppProvider = ({ children }) => {
       showSuccessToast('Logout realizado com sucesso!');
     } catch (error) {
       console.error('❌ Error signing out:', error);
-      showErrorToast('Erro ao fazer logout');
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.signOut',
+          userMessage: 'Erro ao encerrar sessão',
+          suggestion: 'Você foi desconectado localmente; faça login novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar signOut error:', e);
+      }
       // Force logout even if there's an error
       setSession(null);
       dispatch({ type: ACTION_TYPES.RESET_STATE });
@@ -306,6 +352,19 @@ export const AppProvider = ({ children }) => {
     try {
       if (!state.user?.id) throw new Error('Usuário não autenticado');
       
+      // VALIDAÇÃO: Verificar imagem antes de enviar
+      if (!plantData.imageFile) {
+        throw new Error('Selecione uma imagem para a planta');
+      }
+      
+      // VALIDAÇÃO: Verificar tamanho da imagem (se disponível)
+      const MAX_SIZE_MB = 10;
+      const fileSize = plantData.imageFile.fileSize || plantData.imageFile.size || 0;
+      if (fileSize > 0 && fileSize > MAX_SIZE_MB * 1024 * 1024) {
+        throw new Error(`Imagem muito grande (máximo ${MAX_SIZE_MB}MB)`);
+      }
+      
+      console.log('📱 Criando planta com imagem:', plantData.name);
       const newPlant = await plantService.createPlant(state.user.id, plantData);
       dispatch({ type: ACTION_TYPES.ADD_PLANT, payload: newPlant });
       
@@ -315,7 +374,16 @@ export const AppProvider = ({ children }) => {
       showSuccessToast('Planta adicionada com sucesso!');
       return newPlant;
     } catch (error) {
-      showErrorToast(error.message);
+      console.error('❌ Erro ao adicionar planta:', error);
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.addPlant',
+          userMessage: 'Erro ao adicionar planta',
+          suggestion: 'Verifique a imagem e tente novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar addPlant error:', e);
+      }
       throw error;
     }
   };
@@ -354,34 +422,61 @@ export const AppProvider = ({ children }) => {
     try {
       if (!state.user?.id) throw new Error('Usuário não autenticado');
       
+      console.log('📋 Registrando care log para planta:', plantId, 'Tipo:', careData.care_type);
+      
       const newCareLog = await careLogService.createCareLog(
         state.user.id,
         plantId,
         careData
       );
       
+      if (!newCareLog) {
+        throw new Error('Falha ao criar registro de cuidado');
+      }
+      
+      console.log('✅ Care log criado:', newCareLog.id);
       dispatch({ type: ACTION_TYPES.ADD_CARE_LOG, payload: newCareLog });
       
-      // Update plant in local state if it was watered
-      if (careData.care_type === 'water') {
-        const plant = getPlantById(plantId);
-        if (plant) {
-          const updatedPlant = {
-            ...plant,
-            last_watered: careData.care_date || new Date().toISOString(),
-            status: 'fine',
-          };
-          dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
-        }
+      // BUG FIX #3: Sempre atualizar care_logs da planta no estado, não só para 'water'
+      const plant = getPlantById(plantId);
+      if (plant) {
+        const updatedPlant = {
+          ...plant,
+          // Adicionar o novo care log ao array de care_logs
+          care_logs: [newCareLog, ...(plant.care_logs || plant.careLogs || [])],
+          // Atualizar last_watered apenas se for rega
+          last_watered: careData.care_type === 'water' 
+            ? (careData.care_date || new Date().toISOString())
+            : plant.last_watered,
+          // Resetar status se for rega
+          status: careData.care_type === 'water' ? 'fine' : plant.status,
+        };
+        
+        console.log('🔄 Atualizando planta com care log. Total de logs:', updatedPlant.care_logs?.length);
+        dispatch({ type: ACTION_TYPES.UPDATE_PLANT, payload: updatedPlant });
       }
       
       // Add XP for care activity
-      await userService.addXP(state.user.id, 5);
+      try {
+        await userService.addXP(state.user.id, 5);
+      } catch (xpError) {
+        console.warn('⚠️ Erro ao adicionar XP:', xpError);
+        // Não falhar o care log por erro de XP
+      }
       
       showSuccessToast('Cuidado registrado com sucesso!');
       return newCareLog;
     } catch (error) {
-      showErrorToast(error.message);
+      console.error('❌ Erro ao registrar cuidado:', error);
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.addCareLog',
+          userMessage: 'Erro ao registrar cuidado',
+          suggestion: 'Tente novamente',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar addCareLog error:', e);
+      }
       throw error;
     }
   };
@@ -413,9 +508,22 @@ export const AppProvider = ({ children }) => {
 
   const createPost = async (postData) => {
     try {
-      if (!state.user?.id) throw new Error('Usuário não autenticado');
+      // BUG FIX #1: Validação rigorosa de autenticação com session
+      const userId = state.user?.id || session?.user?.id;
+      if (!userId) {
+        console.error('❌ No authenticated user found');
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
       
-      const newPost = await postService.createPost(state.user.id, postData);
+      console.log('📝 Creating post with userId:', userId);
+      const newPost = await postService.createPost(userId, postData);
+      
+      // Verificar se post foi criado com sucesso
+      if (!newPost) {
+        throw new Error('Post não foi criado (retorno vazio do servidor)');
+      }
+      
+      console.log('✅ Post created successfully:', newPost.id);
       
       // Add to local state
       dispatch({ type: ACTION_TYPES.SET_POSTS, payload: [newPost, ...state.posts] });
@@ -424,7 +532,15 @@ export const AppProvider = ({ children }) => {
       return newPost;
     } catch (error) {
       console.error('❌ Error creating post:', error);
-      showErrorToast('Erro ao criar post');
+      try {
+        logAndNotifyError(error, {
+          context: 'AppContext.createPost',
+          userMessage: 'Erro ao criar post',
+          suggestion: 'Tente novamente ou verifique sua conexão',
+        });
+      } catch (e) {
+        console.error('Erro ao notificar createPost error:', e);
+      }
       throw error;
     }
   };

@@ -51,14 +51,13 @@ const PlantCard = ({ plant, onPress, style }) => {
   };
 
   return (
-    <Animated.View style={pulseAnimatedStyle}>
-      <TouchableOpacity 
-        style={[styles.container, style]}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
+    <TouchableOpacity 
+      style={[styles.container, style]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
       <LazyImage 
-        source={{ uri: plant.image }} 
+        source={{ uri: plant.image_url || plant.image }} 
         style={styles.image}
         placeholder="plant"
         showLoadingIndicator={true}
@@ -101,8 +100,7 @@ const PlantCard = ({ plant, onPress, style }) => {
           ]} 
         />
       )}
-      </TouchableOpacity>
-    </Animated.View>
+    </TouchableOpacity>
   );
 };
 

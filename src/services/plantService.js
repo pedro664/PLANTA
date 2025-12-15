@@ -65,9 +65,16 @@ export const plantService = {
   // Create new plant
   createPlant: async (userId, plantData) => {
     try {
+      // VALIDAÇÃO CRÍTICA #1: Imagem obrigatória
+      if (!plantData.imageFile) {
+        throw new Error('Imagem é obrigatória para criar uma planta');
+      }
+
       let imageUrl = null;
       
-      // First create the plant record to get an ID
+      console.log('🌱 Criando planta:', plantData.name);
+      
+      // Criar planta SEM imagem primeiro (para obter ID)
       const { data: plantRecord, error: plantError } = await supabase
         .from(TABLES.PLANTS)
         .insert([
@@ -75,13 +82,16 @@ export const plantService = {
             user_id: userId,
             name: plantData.name,
             scientific_name: plantData.scientific_name || null,
-            image_url: null, // Will be updated after upload
+            image_url: null, // Será preenchido após upload
             description: plantData.description || null,
             water_frequency: plantData.water_frequency,
             light_needs: plantData.light_needs,
             status: 'fine',
             last_watered: plantData.last_watered || new Date().toISOString(),
             tips: plantData.tips || [],
+            image_status: 'uploading', // Marca como pendente de upload
+            image_size_kb: null,
+            image_uploaded_at: null,
           },
         ])
         .select()
@@ -89,31 +99,67 @@ export const plantService = {
 
       if (plantError) throw plantError;
 
-      // Upload image if provided
-      if (plantData.imageFile) {
+      console.log('✅ Planta criada com ID:', plantRecord.id);
+
+      // Fazer upload da imagem (OBRIGATÓRIO agora)
+      try {
+        console.log('📸 Iniciando upload da imagem...');
+        console.log('📸 imageFile:', JSON.stringify({
+          hasUri: !!plantData.imageFile?.uri,
+          uri: plantData.imageFile?.uri?.substring(0, 100),
+          type: plantData.imageFile?.type,
+          width: plantData.imageFile?.width,
+          height: plantData.imageFile?.height,
+        }));
+        const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
+        imageUrl = uploadResult.url;
+        
+        console.log('✅ Imagem enviada com sucesso:', imageUrl);
+        
+        // Atualizar planta com URL da imagem
+        const { data: updatedPlant, error: updateError } = await supabase
+          .from(TABLES.PLANTS)
+          .update({ 
+            image_url: imageUrl,
+            image_status: 'supabase',
+            image_size_kb: uploadResult.size ? Math.round(uploadResult.size / 1024) : null,
+            image_uploaded_at: uploadResult.uploadedAt || new Date().toISOString()
+          })
+          .eq('id', plantRecord.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        
+        console.log('✅ Planta atualizada com imagem no banco');
+        return updatedPlant;
+      } catch (uploadError) {
+        console.error('❌ Erro ao fazer upload da imagem:', uploadError);
+        // Notificar usuário e logar detalhes
         try {
-          console.log('🌱 Uploading plant image...');
-          const uploadResult = await uploadPlantImage(plantData.imageFile, plantRecord.id);
-          imageUrl = uploadResult.url;
-          
-          // Update plant record with image URL
-          const { data: updatedPlant, error: updateError } = await supabase
-            .from(TABLES.PLANTS)
-            .update({ image_url: imageUrl })
-            .eq('id', plantRecord.id)
-            .select()
-            .single();
-
-          if (updateError) throw updateError;
-          return updatedPlant;
-        } catch (uploadError) {
-          console.error('❌ Error uploading plant image:', uploadError);
-          // Return plant without image rather than failing completely
-          return plantRecord;
+          const { logAndNotifyError } = await import('../utils/errorUtils');
+          logAndNotifyError(uploadError, {
+            context: 'plantService.createPlant.upload',
+            userMessage: 'Não foi possível enviar a imagem da planta. A planta foi removida.',
+            suggestion: 'Tente novamente e verifique sua conexão',
+          });
+        } catch (e) {
+          console.error('Erro ao notificar uploadError:', e);
         }
-      }
 
-      return plantRecord;
+        // VALIDAÇÃO CRÍTICA #2: Deletar planta se upload falhar
+        try {
+          await supabase
+            .from(TABLES.PLANTS)
+            .delete()
+            .eq('id', plantRecord.id);
+          console.log('🗑️ Planta deletada porque o upload falhou');
+        } catch (deleteError) {
+          console.error('⚠️ Erro ao deletar planta sem imagem:', deleteError);
+        }
+        
+        throw new Error(`Falha ao fazer upload da imagem: ${uploadError.message}`);
+      }
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Create Plant'));
     }

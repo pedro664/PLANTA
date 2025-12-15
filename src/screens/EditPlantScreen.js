@@ -47,13 +47,15 @@ const EditPlantScreen = ({ route, navigation }) => {
     { value: 'daily', label: 'Diariamente' },
     { value: 'every3days', label: 'A cada 3 dias' },
     { value: 'weekly', label: 'Semanalmente' },
+    { value: 'biweekly', label: 'A cada 2 semanas' },
+    { value: 'monthly', label: 'Mensalmente' },
   ];
 
   // Light needs options
   const lightNeedsOptions = [
-    { value: 'shade', label: 'Sombra' },
+    { value: 'direct', label: 'Sol direto' },
     { value: 'indirect', label: 'Luz indireta' },
-    { value: 'fullsun', label: 'Sol pleno' },
+    { value: 'shade', label: 'Sombra' },
   ];
 
   const { pickImage } = useUniversalImagePicker();

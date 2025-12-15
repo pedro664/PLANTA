@@ -1,154 +1,212 @@
 /**
- * Upload Service for Supabase Storage
- * Handles image uploads to Supabase buckets
+ * Upload Service para Supabase Storage
+ * VERSÃO SIMPLIFICADA E ROBUSTA para Android/iOS
  */
 
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 
-// Storage buckets configuration
-const STORAGE_BUCKETS = {
+// Configuração dos buckets de storage
+export const STORAGE_BUCKETS = {
   PLANTS: 'plant-images',
   POSTS: 'post-images',
   AVATARS: 'avatars'
 };
 
 /**
- * Convert image to uploadable format
+ * Decodifica base64 para Uint8Array (compatível com React Native)
  */
-const prepareImageForUpload = async (imageResult) => {
-  if (!imageResult) return null;
-
-  try {
-    if (Platform.OS === 'web') {
-      // For web, convert blob to file
-      if (imageResult.file) {
-        return {
-          file: imageResult.file,
-          type: imageResult.type || 'image/jpeg',
-          name: imageResult.name || `image_${Date.now()}.jpg`
-        };
-      }
-      
-      // If we have base64, convert to blob
-      if (imageResult.base64) {
-        const byteCharacters = atob(imageResult.base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: imageResult.type || 'image/jpeg' });
-        
-        return {
-          file: blob,
-          type: imageResult.type || 'image/jpeg',
-          name: imageResult.name || `image_${Date.now()}.jpg`
-        };
-      }
-    } else {
-      // For mobile, use the URI directly
-      const response = await fetch(imageResult.uri);
-      const blob = await response.blob();
-      
-      return {
-        file: blob,
-        type: imageResult.type || 'image/jpeg',
-        name: `image_${Date.now()}.jpg`
-      };
-    }
-  } catch (error) {
-    console.error('Error preparing image for upload:', error);
-    throw new Error('Erro ao preparar imagem para upload');
+const base64ToUint8Array = (base64String) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) {
+    lookup[chars.charCodeAt(i)] = i;
   }
+
+  // Remover whitespace e padding
+  const base64 = base64String.replace(/[\s]/g, '');
+  const len = base64.length;
+  
+  // Calcular tamanho real (sem padding)
+  let bufferLength = Math.floor(len * 3 / 4);
+  if (base64[len - 1] === '=') bufferLength--;
+  if (base64[len - 2] === '=') bufferLength--;
+
+  const bytes = new Uint8Array(bufferLength);
+  let p = 0;
+
+  for (let i = 0; i < len; i += 4) {
+    const c1 = base64.charCodeAt(i);
+    const c2 = base64.charCodeAt(i + 1);
+    const c3 = base64.charCodeAt(i + 2);
+    const c4 = base64.charCodeAt(i + 3);
+
+    const e1 = lookup[c1];
+    const e2 = lookup[c2];
+    const e3 = base64[i + 2] === '=' ? 0 : lookup[c3];
+    const e4 = base64[i + 3] === '=' ? 0 : lookup[c4];
+
+    bytes[p++] = (e1 << 2) | (e2 >> 4);
+    if (base64[i + 2] !== '=') {
+      bytes[p++] = ((e2 & 15) << 4) | (e3 >> 2);
+    }
+    if (base64[i + 3] !== '=') {
+      bytes[p++] = ((e3 & 3) << 6) | e4;
+    }
+  }
+
+  return bytes;
 };
 
 /**
- * Upload image to Supabase Storage
+ * Upload de imagem para Supabase Storage
+ * @param {Object} imageData - Objeto com uri da imagem (do expo-image-picker)
+ * @param {string} bucket - Nome do bucket
+ * @param {string} folder - Pasta dentro do bucket
  */
-export const uploadImage = async (imageResult, bucket, folder = '') => {
+export const uploadImage = async (imageData, bucket, folder = '') => {
+  console.log('🚀 [uploadImage] Iniciando upload...', { bucket, folder, platform: Platform.OS });
+
   try {
-    if (!imageResult) {
+    // Validar entrada
+    if (!imageData) {
       throw new Error('Nenhuma imagem fornecida');
     }
 
-    console.log('🔄 Starting image upload...', { bucket, folder });
-
-    // Prepare image for upload
-    const preparedImage = await prepareImageForUpload(imageResult);
-    if (!preparedImage) {
-      throw new Error('Erro ao preparar imagem');
+    // Extrair URI
+    const uri = imageData.uri || imageData;
+    if (!uri || typeof uri !== 'string') {
+      throw new Error('URI da imagem inválida');
     }
 
-    // Generate unique filename
+    console.log('📸 [uploadImage] URI:', uri.substring(0, 100) + '...');
+
+    // Verificar autenticação
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Usuário não autenticado. Faça login para enviar imagens.');
+    }
+    console.log('👤 [uploadImage] Usuário:', user.id);
+
+    // Ler arquivo como base64
+    let base64Data;
+    try {
+      console.log('📖 [uploadImage] Lendo arquivo...');
+      console.log('📖 [uploadImage] URI completa:', uri);
+      
+      // Verificar se o arquivo existe
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      console.log('📖 [uploadImage] File info:', JSON.stringify(fileInfo));
+      
+      if (!fileInfo.exists) {
+        throw new Error('Arquivo não encontrado: ' + uri);
+      }
+      
+      base64Data = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      if (!base64Data || base64Data.length === 0) {
+        throw new Error('Arquivo vazio ou não pôde ser lido');
+      }
+      
+      console.log('✅ [uploadImage] Arquivo lido. Tamanho base64:', base64Data.length);
+    } catch (readError) {
+      console.error('❌ [uploadImage] Erro ao ler arquivo:', readError);
+      console.error('❌ [uploadImage] Stack:', readError.stack);
+      throw new Error(`Não foi possível ler a imagem: ${readError.message}`);
+    }
+
+    // Converter base64 para bytes
+    console.log('🔄 [uploadImage] Convertendo base64 para bytes...');
+    const bytes = base64ToUint8Array(base64Data);
+    console.log('✅ [uploadImage] Bytes criados:', bytes.length);
+
+    // Validar tamanho (máximo 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (bytes.length > MAX_SIZE) {
+      throw new Error(`Imagem muito grande (${(bytes.length / 1024 / 1024).toFixed(2)}MB). Máximo: 10MB`);
+    }
+
+    // Gerar nome único para o arquivo
     const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 15);
-    const fileExtension = preparedImage.name.split('.').pop() || 'jpg';
-    const fileName = `${folder ? folder + '/' : ''}${timestamp}_${randomId}.${fileExtension}`;
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const fileName = folder 
+      ? `${folder}/${timestamp}_${randomId}.jpg`
+      : `${timestamp}_${randomId}.jpg`;
 
-    console.log('📁 Uploading to:', { bucket, fileName });
+    console.log('📁 [uploadImage] Nome do arquivo:', fileName);
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    // Fazer upload para Supabase
+    console.log('⬆️ [uploadImage] Enviando para Supabase Storage...');
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(fileName, preparedImage.file, {
-        contentType: preparedImage.type,
-        upsert: false
+      .upload(fileName, bytes.buffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+        upsert: false,
       });
 
-    if (error) {
-      console.error('❌ Upload error:', error);
-      throw new Error(`Erro no upload: ${error.message}`);
+    if (uploadError) {
+      console.error('❌ [uploadImage] Erro no upload:', uploadError);
+      throw new Error(`Erro no upload: ${uploadError.message}`);
     }
 
-    console.log('✅ Upload successful:', data);
+    console.log('✅ [uploadImage] Upload concluído:', uploadData);
 
-    // Get public URL
+    // Obter URL pública
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(fileName);
 
-    if (!urlData?.publicUrl) {
-      throw new Error('Erro ao obter URL pública da imagem');
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      throw new Error('Não foi possível gerar URL pública');
     }
 
-    console.log('🔗 Public URL generated:', urlData.publicUrl);
+    console.log('🔗 [uploadImage] URL pública:', publicUrl);
 
     return {
+      url: publicUrl,
       path: fileName,
-      url: urlData.publicUrl,
-      bucket: bucket
+      bucket: bucket,
+      size: bytes.length,
+      uploadedAt: new Date().toISOString()
     };
 
   } catch (error) {
-    console.error('❌ Upload service error:', error);
+    console.error('❌ [uploadImage] ERRO FATAL:', error);
     throw error;
   }
 };
 
 /**
- * Upload plant image
+ * Upload de foto de planta
  */
-export const uploadPlantImage = async (imageResult, plantId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.PLANTS, `plants/${plantId}`);
+export const uploadPlantImage = async (imageData, plantId) => {
+  console.log('🌱 [uploadPlantImage] Plant ID:', plantId);
+  return uploadImage(imageData, STORAGE_BUCKETS.PLANTS, `plants/${plantId}`);
 };
 
 /**
- * Upload post image
+ * Upload de foto de post
  */
-export const uploadPostImage = async (imageResult, postId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.POSTS, `posts/${postId}`);
+export const uploadPostImage = async (imageData, postId) => {
+  console.log('📝 [uploadPostImage] Post ID:', postId);
+  return uploadImage(imageData, STORAGE_BUCKETS.POSTS, `posts/${postId}`);
 };
 
 /**
- * Upload avatar image
+ * Upload de avatar
  */
-export const uploadAvatarImage = async (imageResult, userId) => {
-  return uploadImage(imageResult, STORAGE_BUCKETS.AVATARS, `users/${userId}`);
+export const uploadAvatarImage = async (imageData, userId) => {
+  console.log('👤 [uploadAvatarImage] User ID:', userId);
+  return uploadImage(imageData, STORAGE_BUCKETS.AVATARS, `users/${userId}`);
 };
 
 /**
- * Delete image from storage
+ * Deleta imagem do storage
  */
 export const deleteImage = async (bucket, path) => {
   try {
@@ -157,41 +215,48 @@ export const deleteImage = async (bucket, path) => {
       .remove([path]);
 
     if (error) {
-      console.error('Error deleting image:', error);
+      console.error('❌ [deleteImage] Erro:', error);
       throw error;
     }
 
-    console.log('✅ Image deleted successfully:', path);
+    console.log('✅ [deleteImage] Imagem deletada:', path);
     return true;
   } catch (error) {
-    console.error('❌ Delete image error:', error);
+    console.error('❌ [deleteImage] Erro ao deletar:', error);
     throw error;
   }
 };
 
 /**
- * Replace existing image
+ * Substitui imagem existente
  */
-export const replaceImage = async (imageResult, bucket, oldPath, folder = '') => {
+export const replaceImage = async (imageData, bucket, oldPath, folder = '') => {
   try {
-    // Upload new image
-    const uploadResult = await uploadImage(imageResult, bucket, folder);
+    // Fazer upload da nova imagem
+    const uploadResult = await uploadImage(imageData, bucket, folder);
     
-    // Delete old image if it exists and is not a placeholder
-    if (oldPath && !oldPath.includes('unsplash.com') && !oldPath.includes('placeholder')) {
+    // Tentar deletar imagem antiga (não falhar se não conseguir)
+    if (oldPath && !oldPath.includes('unsplash') && !oldPath.includes('placeholder')) {
       try {
-        const pathParts = oldPath.split('/');
-        const fileName = pathParts[pathParts.length - 1];
-        await deleteImage(bucket, `${folder}/${fileName}`);
+        // Extrair path do URL se necessário
+        let pathToDelete = oldPath;
+        if (oldPath.includes('supabase.co')) {
+          const urlParts = oldPath.split('/storage/v1/object/public/');
+          if (urlParts[1]) {
+            const bucketAndPath = urlParts[1].split('/');
+            bucketAndPath.shift(); // Remove bucket name
+            pathToDelete = bucketAndPath.join('/');
+          }
+        }
+        await deleteImage(bucket, pathToDelete);
       } catch (deleteError) {
-        console.warn('Could not delete old image:', deleteError);
-        // Don't throw error for delete failure
+        console.warn('⚠️ [replaceImage] Não conseguiu deletar imagem antiga:', deleteError);
       }
     }
     
     return uploadResult;
   } catch (error) {
-    console.error('❌ Replace image error:', error);
+    console.error('❌ [replaceImage] Erro:', error);
     throw error;
   }
 };
