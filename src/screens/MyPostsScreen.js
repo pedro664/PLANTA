@@ -7,6 +7,9 @@ import {
   RefreshControl,
   Alert,
   Dimensions,
+  Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +33,9 @@ const MyPostsScreen = ({ navigation }) => {
   const [myPosts, setMyPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load user posts
   const loadMyPosts = useCallback(async () => {
@@ -75,31 +81,55 @@ const MyPostsScreen = ({ navigation }) => {
     }
   };
 
-  // Handle delete post
+  // Handle delete post - show confirmation
   const handleDeletePost = (post) => {
-    Alert.alert(
-      'Excluir Post',
-      'Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Excluir', 
-          style: 'destructive',
-          onPress: () => deletePost(post.id)
-        },
-      ]
-    );
+    console.log('🗑️ [handleDeletePost] Post selecionado para exclusão:', post.id);
+    
+    if (Platform.OS === 'web') {
+      // Na web, usar modal customizado ou window.confirm
+      setPostToDelete(post);
+      setDeleteModalVisible(true);
+    } else {
+      // No mobile, usar Alert nativo
+      Alert.alert(
+        'Excluir Post',
+        'Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Excluir', 
+            style: 'destructive',
+            onPress: () => confirmDeletePost(post.id)
+          },
+        ]
+      );
+    }
   };
-  // Delete post
-  const deletePost = async (postId) => {
+
+  // Confirm and execute delete
+  const confirmDeletePost = async (postId) => {
+    console.log('🗑️ [confirmDeletePost] Confirmando exclusão do post:', postId);
+    setIsDeleting(true);
+    
     try {
       await postService.deletePost(postId);
       setMyPosts(prev => prev.filter(post => post.id !== postId));
       showSuccessToast('Post excluído com sucesso!');
+      console.log('✅ [confirmDeletePost] Post excluído com sucesso');
     } catch (error) {
-      console.error('Error deleting post:', error);
-      showErrorToast('Erro ao excluir post');
+      console.error('❌ [confirmDeletePost] Erro ao excluir post:', error);
+      showErrorToast('Erro ao excluir post: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsDeleting(false);
+      setDeleteModalVisible(false);
+      setPostToDelete(null);
     }
+  };
+
+  // Cancel delete
+  const cancelDelete = () => {
+    setDeleteModalVisible(false);
+    setPostToDelete(null);
   };
 
   // Handle edit post
@@ -114,22 +144,27 @@ const MyPostsScreen = ({ navigation }) => {
 
   // Handle long press for actions
   const handlePostLongPress = (post) => {
-    Alert.alert(
-      'Opções do Post',
-      'O que você gostaria de fazer?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Editar', 
-          onPress: () => handleEditPost(post)
-        },
-        { 
-          text: 'Excluir', 
-          style: 'destructive',
-          onPress: () => handleDeletePost(post)
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      // Na web, ir direto para delete já que long press não é comum
+      handleDeletePost(post);
+    } else {
+      Alert.alert(
+        'Opções do Post',
+        'O que você gostaria de fazer?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Editar', 
+            onPress: () => handleEditPost(post)
+          },
+          { 
+            text: 'Excluir', 
+            style: 'destructive',
+            onPress: () => handleDeletePost(post)
+          },
+        ]
+      );
+    }
   };
 
   // Render grid post item - Instagram style
@@ -168,6 +203,22 @@ const MyPostsScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Delete button */}
+      <Pressable 
+        style={({ pressed }) => [
+          styles.deleteButton,
+          pressed && styles.deleteButtonPressed
+        ]}
+        onPress={(e) => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          console.log('🗑️ Delete button pressed for post:', post.id);
+          handleDeletePost(post);
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="trash-outline" size={16} color="white" />
+      </Pressable>
+
       {/* Category indicator */}
       <View style={styles.categoryIndicator}>
         <Ionicons 
@@ -184,6 +235,44 @@ const MyPostsScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* Delete Confirmation Modal (for web) */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="trash-outline" size={32} color={colors.system.error} />
+            </View>
+            <Text style={styles.modalTitle}>Excluir Post</Text>
+            <Text style={styles.modalMessage}>
+              Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton}
+                onPress={cancelDelete}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalDeleteButton, isDeleting && styles.modalButtonDisabled]}
+                onPress={() => postToDelete && confirmDeletePost(postToDelete.id)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalDeleteText}>
+                  {isDeleting ? 'Excluindo...' : 'Excluir'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -351,6 +440,100 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  
+  // Delete button
+  deleteButton: {
+    position: 'absolute',
+    top: spacing.xs,
+    left: spacing.xs,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(220, 53, 69, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  deleteButtonPressed: {
+    backgroundColor: 'rgba(180, 40, 50, 1)',
+    transform: [{ scale: 0.95 }],
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.ui.background,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...textStyles.h3,
+    color: colors.botanical.dark,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
+  },
+  modalMessage: {
+    ...textStyles.body,
+    color: colors.botanical.sage,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    width: '100%',
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.botanical.sand,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    ...textStyles.body,
+    color: colors.botanical.dark,
+    fontWeight: '600',
+  },
+  modalDeleteButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.system.error,
+    alignItems: 'center',
+  },
+  modalDeleteText: {
+    ...textStyles.body,
+    color: 'white',
+    fontWeight: '600',
+  },
+  modalButtonDisabled: {
+    opacity: 0.6,
   },
   
   // Category indicator

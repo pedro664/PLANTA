@@ -5,6 +5,7 @@ import {
   TouchableOpacity, 
   Image,
   Animated,
+  Alert,
 } from 'react-native';
 import Text from './Text';
 import LazyImage from './LazyImage';
@@ -17,13 +18,16 @@ import { componentShadows } from '../theme/shadows';
 import { showInfoToast, showErrorToast } from './Toast';
 import { useNavigation } from '@react-navigation/native';
 
-const PostCard = ({ post, onPress, style }) => {
+const PostCard = ({ post, onPress, onDelete, style }) => {
   const { toggleLike, user } = useAppContext();
   const navigation = useNavigation();
   
   // Animation values using React Native Animated
   const likeScale = useRef(new Animated.Value(1)).current;
   const likeOpacity = useRef(new Animated.Value(1)).current;
+  
+  // Check if current user is the owner of this post
+  const isOwner = user?.id === post.user_id;
 
   // Format time since publication
   const formatTimeAgo = (dateString) => {
@@ -88,30 +92,71 @@ const PostCard = ({ post, onPress, style }) => {
     });
   };
 
+  // Handle delete button press
+  const handleDelete = () => {
+    Alert.alert(
+      'Excluir Post',
+      'Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Excluir', 
+          style: 'destructive',
+          onPress: () => {
+            if (onDelete) {
+              onDelete(post);
+            }
+          }
+        },
+      ]
+    );
+  };
+
   return (
     <View style={[styles.container, style]}>
       {/* Header with user info */}
-      <TouchableOpacity 
-        style={styles.header}
-        onPress={handlePress}
-        activeOpacity={0.95}
-      >
-        <LazyImage 
-          source={{ uri: post.users?.avatar_url || null }} 
-          style={styles.avatar}
-          placeholder="user"
-          showLoadingIndicator={false}
-          resizeMode="cover"
-        />
-        <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {post.users?.name || 'Usuário'}
-          </Text>
-          <Text style={styles.timeAgo}>
-            {formatTimeAgo(post.created_at)}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (post.user_id && post.user_id !== user?.id) {
+              navigation.navigate('UserProfile', { userId: post.user_id });
+            }
+          }}
+          activeOpacity={0.7}
+          style={styles.userTouchable}
+        >
+          <LazyImage 
+            source={{ uri: post.users?.avatar_url || null }} 
+            style={styles.avatar}
+            placeholder="user"
+            showLoadingIndicator={false}
+            resizeMode="cover"
+          />
+          <View style={styles.userInfo}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {post.users?.name || 'Usuário'}
+            </Text>
+            <Text style={styles.timeAgo}>
+              {formatTimeAgo(post.created_at)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        
+        {/* Delete button - only visible for post owner */}
+        {isOwner && onDelete && (
+          <TouchableOpacity 
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            activeOpacity={0.7}
+          >
+            <Ionicons 
+              name="trash-outline" 
+              size={20} 
+              color={colors.system.error} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Post image */}
       <TouchableOpacity 
@@ -212,10 +257,20 @@ const styles = StyleSheet.create({
   
   // Header styles
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: spacing.md,
     paddingBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  userTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  deleteButton: {
+    padding: spacing.xs,
+    marginLeft: spacing.sm,
   },
   avatar: {
     width: layout.avatar.sm,

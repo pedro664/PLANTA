@@ -1,5 +1,14 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import { Image, Platform } from 'react-native';
+
+// FileSystem será importado dinamicamente apenas em plataformas nativas
+let FileSystem = null;
+const getFileSystem = async () => {
+  if (Platform.OS === 'web') return null;
+  if (!FileSystem) {
+    FileSystem = await import('expo-file-system/legacy');
+  }
+  return FileSystem;
+};
 
 /**
  * Image Cache Service for Educultivo
@@ -15,8 +24,9 @@ const CACHE_CONFIG = {
   maxImageSize: 1024, // Max width/height in pixels
 };
 
-const CACHE_DIR = `${FileSystem.cacheDirectory}images/`;
-const CACHE_INDEX_FILE = `${FileSystem.cacheDirectory}imageCache.json`;
+// Cache directories serão definidos após carregar FileSystem
+let CACHE_DIR = '';
+let CACHE_INDEX_FILE = '';
 
 // In-memory cache for quick access
 const memoryCache = new Map();
@@ -33,10 +43,17 @@ const initializeCache = async () => {
       return;
     }
 
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
+    // Definir diretórios de cache
+    CACHE_DIR = `${fs.cacheDirectory}images/`;
+    CACHE_INDEX_FILE = `${fs.cacheDirectory}imageCache.json`;
+
     // Ensure cache directory exists
-    const dirInfo = await FileSystem.getInfoAsync(CACHE_DIR);
+    const dirInfo = await fs.getInfoAsync(CACHE_DIR);
     if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+      await fs.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
     }
 
     // Load cache index
@@ -54,9 +71,13 @@ const initializeCache = async () => {
  */
 const loadCacheIndex = async () => {
   try {
-    const indexInfo = await FileSystem.getInfoAsync(CACHE_INDEX_FILE);
+    if (Platform.OS === 'web') return;
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
+    const indexInfo = await fs.getInfoAsync(CACHE_INDEX_FILE);
     if (indexInfo.exists) {
-      const indexData = await FileSystem.readAsStringAsync(CACHE_INDEX_FILE);
+      const indexData = await fs.readAsStringAsync(CACHE_INDEX_FILE);
       const cacheIndex = JSON.parse(indexData);
       
       // Populate memory cache with metadata
@@ -74,8 +95,12 @@ const loadCacheIndex = async () => {
  */
 const saveCacheIndex = async () => {
   try {
+    if (Platform.OS === 'web') return;
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
     const cacheIndex = Object.fromEntries(memoryCache);
-    await FileSystem.writeAsStringAsync(CACHE_INDEX_FILE, JSON.stringify(cacheIndex));
+    await fs.writeAsStringAsync(CACHE_INDEX_FILE, JSON.stringify(cacheIndex));
   } catch (error) {
     console.error('Error saving cache index:', error);
   }
@@ -92,13 +117,18 @@ const getCacheKey = (url) => {
  * Get cached image path if exists and valid
  */
 const getCachedImagePath = async (url) => {
+  if (Platform.OS === 'web') return null;
+  
   const metadata = memoryCache.get(url);
   if (!metadata) return null;
 
   const cachedPath = `${CACHE_DIR}${metadata.filename}`;
   
   try {
-    const fileInfo = await FileSystem.getInfoAsync(cachedPath);
+    const fs = await getFileSystem();
+    if (!fs) return null;
+    
+    const fileInfo = await fs.getInfoAsync(cachedPath);
     if (!fileInfo.exists) {
       // File doesn't exist, remove from cache
       memoryCache.delete(url);
@@ -109,7 +139,7 @@ const getCachedImagePath = async (url) => {
     const now = Date.now();
     if (now - metadata.cachedAt > CACHE_CONFIG.maxCacheAge) {
       // Cache expired, remove file and metadata
-      await FileSystem.deleteAsync(cachedPath);
+      await fs.deleteAsync(cachedPath);
       memoryCache.delete(url);
       return null;
     }
@@ -129,6 +159,8 @@ const getCachedImagePath = async (url) => {
  * Download and cache image
  */
 const downloadAndCacheImage = async (url) => {
+  if (Platform.OS === 'web') return url;
+  
   // Check if download is already in progress
   if (downloadPromises.has(url)) {
     return downloadPromises.get(url);
@@ -136,18 +168,21 @@ const downloadAndCacheImage = async (url) => {
 
   const downloadPromise = (async () => {
     try {
+      const fs = await getFileSystem();
+      if (!fs) return url;
+      
       const filename = getCacheKey(url) + '.jpg';
       const cachedPath = `${CACHE_DIR}${filename}`;
       
       // Download image
-      const downloadResult = await FileSystem.downloadAsync(url, cachedPath);
+      const downloadResult = await fs.downloadAsync(url, cachedPath);
       
       if (downloadResult.status !== 200) {
         throw new Error(`Download failed with status: ${downloadResult.status}`);
       }
 
       // Get file info
-      const fileInfo = await FileSystem.getInfoAsync(cachedPath);
+      const fileInfo = await fs.getInfoAsync(cachedPath);
       
       // Store metadata in memory cache
       const metadata = {
@@ -242,14 +277,18 @@ export const preloadImages = async (urls) => {
  */
 const checkCacheSizeAndCleanup = async () => {
   try {
-    const files = await FileSystem.readDirectoryAsync(CACHE_DIR);
+    if (Platform.OS === 'web') return;
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
+    const files = await fs.readDirectoryAsync(CACHE_DIR);
     let totalSize = 0;
     const fileStats = [];
 
     // Get file stats
     for (const file of files) {
       const filePath = `${CACHE_DIR}${file}`;
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      const fileInfo = await fs.getInfoAsync(filePath);
       if (fileInfo.exists) {
         totalSize += fileInfo.size;
         fileStats.push({
@@ -273,7 +312,7 @@ const checkCacheSizeAndCleanup = async () => {
         if (totalSize - removedSize <= targetSize) break;
         
         try {
-          await FileSystem.deleteAsync(fileStat.path);
+          await fs.deleteAsync(fileStat.path);
           removedSize += fileStat.size;
           
           // Remove from memory cache
@@ -300,6 +339,10 @@ const checkCacheSizeAndCleanup = async () => {
  */
 const cleanupExpiredCache = async () => {
   try {
+    if (Platform.OS === 'web') return;
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
     const now = Date.now();
     const expiredUrls = [];
     
@@ -316,7 +359,7 @@ const cleanupExpiredCache = async () => {
       if (metadata) {
         const filePath = `${CACHE_DIR}${metadata.filename}`;
         try {
-          await FileSystem.deleteAsync(filePath);
+          await fs.deleteAsync(filePath);
         } catch (error) {
           // File might already be deleted, ignore error
         }
@@ -352,23 +395,26 @@ export const clearImageCache = async () => {
   }
   
   try {
+    const fs = await getFileSystem();
+    if (!fs) return;
+    
     // Clear memory cache
     memoryCache.clear();
     
     // Remove cache directory
-    const dirInfo = await FileSystem.getInfoAsync(CACHE_DIR);
+    const dirInfo = await fs.getInfoAsync(CACHE_DIR);
     if (dirInfo.exists) {
-      await FileSystem.deleteAsync(CACHE_DIR);
+      await fs.deleteAsync(CACHE_DIR);
     }
     
     // Remove cache index
-    const indexInfo = await FileSystem.getInfoAsync(CACHE_INDEX_FILE);
+    const indexInfo = await fs.getInfoAsync(CACHE_INDEX_FILE);
     if (indexInfo.exists) {
-      await FileSystem.deleteAsync(CACHE_INDEX_FILE);
+      await fs.deleteAsync(CACHE_INDEX_FILE);
     }
     
     // Recreate cache directory
-    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+    await fs.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
   } catch (error) {
     console.error('Error clearing image cache:', error);
   }
@@ -389,12 +435,23 @@ export const getCacheStats = async () => {
   }
   
   try {
-    const files = await FileSystem.readDirectoryAsync(CACHE_DIR);
+    const fs = await getFileSystem();
+    if (!fs) {
+      return {
+        totalFiles: 0,
+        totalSize: 0,
+        totalSizeMB: '0.00',
+        maxSizeMB: (CACHE_CONFIG.maxCacheSize / (1024 * 1024)).toFixed(2),
+        cacheEntries: 0,
+      };
+    }
+    
+    const files = await fs.readDirectoryAsync(CACHE_DIR);
     let totalSize = 0;
     
     for (const file of files) {
       const filePath = `${CACHE_DIR}${file}`;
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      const fileInfo = await fs.getInfoAsync(filePath);
       if (fileInfo.exists) {
         totalSize += fileInfo.size;
       }

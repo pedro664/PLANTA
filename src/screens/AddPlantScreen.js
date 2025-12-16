@@ -37,7 +37,17 @@ const AddPlantScreen = ({ navigation }) => {
     waterFrequency: 'weekly',
     lightNeeds: 'indirect',
     plantedDate: new Date().toISOString().split('T')[0],
+    // Novos campos
+    plantType: null,
+    fertilizerInfo: '',
+    fertilizerType: null,
+    pruningInfo: '',
+    pruningFrequency: null,
+    harvestInfo: '',
+    harvestFrequency: null,
   });
+  
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +67,59 @@ const AddPlantScreen = ({ navigation }) => {
     { value: 'direct', label: 'Sol direto' },
     { value: 'indirect', label: 'Luz indireta' },
     { value: 'shade', label: 'Sombra' },
+    { value: 'fullsun', label: 'Pleno sol' },
+    { value: 'hybrid', label: 'Híbrido' },
+  ];
+
+  // Opções de tipo de planta
+  const plantTypeOptions = [
+    { value: 'edible', label: 'Comestível' },
+    { value: 'medicinal', label: 'Medicinal' },
+    { value: 'ornamental', label: 'Ornamental' },
+    { value: 'aromatic', label: 'Aromática' },
+    { value: 'succulent', label: 'Suculenta' },
+    { value: 'fruit', label: 'Frutífera' },
+    { value: 'vegetable', label: 'Hortaliça' },
+    { value: 'herb', label: 'Erva' },
+    { value: 'flower', label: 'Flor' },
+    { value: 'tree', label: 'Árvore' },
+    { value: 'vine', label: 'Trepadeira' },
+    { value: 'aquatic', label: 'Aquática' },
+    { value: 'other', label: 'Outra' },
+  ];
+
+  // Opções de tipo de adubação
+  const fertilizerTypeOptions = [
+    { value: 'organic', label: 'Orgânico' },
+    { value: 'chemical', label: 'Químico' },
+    { value: 'npk', label: 'NPK' },
+    { value: 'compost', label: 'Composto' },
+    { value: 'humus', label: 'Húmus' },
+    { value: 'bokashi', label: 'Bokashi' },
+    { value: 'liquid', label: 'Líquido' },
+    { value: 'slow_release', label: 'Liberação lenta' },
+    { value: 'foliar', label: 'Foliar' },
+    { value: 'none', label: 'Não aduba' },
+  ];
+
+  // Opções de frequência de poda
+  const pruningFrequencyOptions = [
+    { value: 'monthly', label: 'Mensal' },
+    { value: 'quarterly', label: 'Trimestral' },
+    { value: 'biannual', label: 'Semestral' },
+    { value: 'annual', label: 'Anual' },
+    { value: 'as_needed', label: 'Conforme necessário' },
+  ];
+
+  // Opções de frequência de colheita
+  const harvestFrequencyOptions = [
+    { value: 'daily', label: 'Diária' },
+    { value: 'weekly', label: 'Semanal' },
+    { value: 'biweekly', label: 'Quinzenal' },
+    { value: 'monthly', label: 'Mensal' },
+    { value: 'quarterly', label: 'Trimestral' },
+    { value: 'seasonal', label: 'Sazonal' },
+    { value: 'annual', label: 'Anual' },
   ];
 
   const { pickImage: pickUniversalImage } = useUniversalImagePicker();
@@ -138,6 +201,14 @@ const AddPlantScreen = ({ navigation }) => {
         water_frequency: formData.waterFrequency,
         light_needs: formData.lightNeeds,
         planted_date: formData.plantedDate ? new Date(formData.plantedDate).toISOString() : null,
+        // Novos campos
+        plant_type: formData.plantType || null,
+        fertilizer_info: formData.fertilizerInfo.trim() || null,
+        fertilizer_type: formData.fertilizerType || null,
+        pruning_info: formData.pruningInfo.trim() || null,
+        pruning_frequency: formData.pruningFrequency || null,
+        harvest_info: formData.harvestInfo.trim() || null,
+        harvest_frequency: formData.harvestFrequency || null,
       };
 
       setUploadStatus('Processando imagem...');
@@ -331,6 +402,148 @@ const AddPlantScreen = ({ navigation }) => {
             />
           </View>
 
+          {/* Plant Type */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Tipo de Planta</Text>
+            <View style={styles.pickerContainerWrap}>
+              {plantTypeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.pickerOption,
+                    formData.plantType === option.value && styles.pickerOptionSelected
+                  ]}
+                  onPress={() => setFormData(prev => ({ 
+                    ...prev, 
+                    plantType: prev.plantType === option.value ? null : option.value 
+                  }))}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    formData.plantType === option.value && styles.pickerOptionTextSelected
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Advanced Options Toggle */}
+          <TouchableOpacity 
+            style={styles.advancedToggle}
+            onPress={() => setShowAdvanced(!showAdvanced)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.advancedToggleContent}>
+              <Ionicons 
+                name={showAdvanced ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color={colors.botanical.clay} 
+              />
+              <Text style={styles.advancedToggleText}>
+                {showAdvanced ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+              </Text>
+            </View>
+            <Text style={styles.advancedToggleHint}>
+              Adubação, poda e colheita
+            </Text>
+          </TouchableOpacity>
+
+          {showAdvanced && (
+            <View style={styles.advancedSection}>
+              {/* Fertilizer Section */}
+              <View style={styles.sectionDivider}>
+                <Ionicons name="leaf" size={18} color={colors.botanical.clay} />
+                <Text style={styles.sectionDividerText}>Adubação</Text>
+              </View>
+
+              <PickerSection
+                title="Tipo de Adubação"
+                options={fertilizerTypeOptions}
+                selectedValue={formData.fertilizerType}
+                onValueChange={(value) => setFormData(prev => ({ 
+                  ...prev, 
+                  fertilizerType: prev.fertilizerType === value ? null : value 
+                }))}
+              />
+
+              <View style={styles.section}>
+                <Text style={styles.label}>Informações sobre Adubação</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={formData.fertilizerInfo}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, fertilizerInfo: text }))}
+                  placeholder="Ex: NPK 10-10-10, adubo orgânico..."
+                  placeholderTextColor={colors.botanical.sage}
+                  multiline
+                  numberOfLines={2}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Pruning Section */}
+              <View style={styles.sectionDivider}>
+                <Ionicons name="cut" size={18} color={colors.botanical.clay} />
+                <Text style={styles.sectionDividerText}>Poda</Text>
+              </View>
+
+              <PickerSection
+                title="Frequência de Poda"
+                options={pruningFrequencyOptions}
+                selectedValue={formData.pruningFrequency}
+                onValueChange={(value) => setFormData(prev => ({ 
+                  ...prev, 
+                  pruningFrequency: prev.pruningFrequency === value ? null : value 
+                }))}
+              />
+
+              <View style={styles.section}>
+                <Text style={styles.label}>Informações sobre Poda</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={formData.pruningInfo}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, pruningInfo: text }))}
+                  placeholder="Ex: Podar galhos secos, época ideal..."
+                  placeholderTextColor={colors.botanical.sage}
+                  multiline
+                  numberOfLines={2}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Harvest Section */}
+              <View style={styles.sectionDivider}>
+                <Ionicons name="basket" size={18} color={colors.botanical.clay} />
+                <Text style={styles.sectionDividerText}>Colheita</Text>
+              </View>
+
+              <PickerSection
+                title="Frequência de Colheita"
+                options={harvestFrequencyOptions}
+                selectedValue={formData.harvestFrequency}
+                onValueChange={(value) => setFormData(prev => ({ 
+                  ...prev, 
+                  harvestFrequency: prev.harvestFrequency === value ? null : value 
+                }))}
+              />
+
+              <View style={styles.section}>
+                <Text style={styles.label}>Informações sobre Colheita</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={formData.harvestInfo}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, harvestInfo: text }))}
+                  placeholder="Ex: Colher quando maduro, sinais de maturação..."
+                  placeholderTextColor={colors.botanical.sage}
+                  multiline
+                  numberOfLines={2}
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
+          )}
 
         </ScrollView>
       </KeyboardAvoidingView>
@@ -473,6 +686,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  pickerContainerWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  // Advanced toggle styles
+  advancedToggle: {
+    backgroundColor: colors.botanical.clay + '10',
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.botanical.clay + '30',
+  },
+  advancedToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  advancedToggleText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.botanical.clay,
+  },
+  advancedToggleHint: {
+    fontSize: 12,
+    color: colors.botanical.sage,
+    marginTop: 4,
+    marginLeft: 28,
+  },
+
+  // Advanced section styles
+  advancedSection: {
+    backgroundColor: colors.ui.background,
+    borderRadius: 16,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.botanical.sage + '20',
+  },
+  sectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.botanical.sage + '20',
+  },
+  sectionDividerText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.botanical.clay,
   },
   pickerOption: {
     paddingHorizontal: 16,

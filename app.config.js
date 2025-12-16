@@ -12,9 +12,9 @@ export default {
     description: "Educultivo - Aplicativo para cuidar das suas plantas, acompanhar crescimento e conectar com uma comunidade de jardineiros.",
     primaryColor: "#2E4A3D",
     splash: {
-      image: "./assets/splash-icon.png",
+      image: "./assets/logo-loading.png",
       resizeMode: "contain",
-      backgroundColor: "#F7F5F0"
+      backgroundColor: "#2E4A3D"
     },
     ios: {
       supportsTablet: true,
@@ -35,7 +35,7 @@ export default {
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#F7F5F0"
+        backgroundImage: "./assets/adaptive-icon.png"
       },
       package: "com.planta.app",
       permissions: [
@@ -61,6 +61,14 @@ export default {
     assetBundlePatterns: ["**/*"],
     plugins: [
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          backgroundColor: "#2E4A3D",
+          image: "./assets/logo-loading.png",
+          imageWidth: 200
+        }
+      ],
       [
         "expo-camera",
         {

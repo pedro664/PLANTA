@@ -147,16 +147,34 @@ const PostDetailScreen = ({ route, navigation }) => {
   // Comment component
   const CommentItem = ({ comment }) => (
     <View style={styles.commentItem}>
-      <LazyImage 
-        source={{ uri: comment.users?.avatar_url || null }} 
-        style={styles.commentAvatar}
-        placeholder="user"
-        showLoadingIndicator={false}
-        resizeMode="cover"
-      />
+      <TouchableOpacity
+        onPress={() => {
+          if (comment.user_id && comment.user_id !== user?.id) {
+            navigation.navigate('UserProfile', { userId: comment.user_id });
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <LazyImage 
+          source={{ uri: comment.users?.avatar_url || null }} 
+          style={styles.commentAvatar}
+          placeholder="user"
+          showLoadingIndicator={false}
+          resizeMode="cover"
+        />
+      </TouchableOpacity>
       <View style={styles.commentContent}>
         <View style={styles.commentHeader}>
-          <Text style={styles.commentUserName}>{comment.users?.name || 'Usuário'}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (comment.user_id && comment.user_id !== user?.id) {
+                navigation.navigate('UserProfile', { userId: comment.user_id });
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.commentUserName}>{comment.users?.name || 'Usuário'}</Text>
+          </TouchableOpacity>
           <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
         </View>
         <Text style={styles.commentText}>{comment.text}</Text>
@@ -195,7 +213,15 @@ const PostDetailScreen = ({ route, navigation }) => {
             {/* Post content */}
             <View style={styles.postContainer}>
               {/* Post header */}
-              <View style={styles.postHeader}>
+              <TouchableOpacity 
+                style={styles.postHeader}
+                onPress={() => {
+                  if (currentPost.user_id && currentPost.user_id !== user?.id) {
+                    navigation.navigate('UserProfile', { userId: currentPost.user_id });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 <LazyImage 
                   source={{ uri: currentPost.users?.avatar_url || null }} 
                   style={styles.postAvatar}
@@ -207,7 +233,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                   <Text style={styles.postUserName}>{currentPost.users?.name || 'Usuário'}</Text>
                   <Text style={styles.postTime}>{formatTimeAgo(currentPost.created_at)}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               {/* Post image */}
               {currentPost.image_url && (

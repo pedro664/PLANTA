@@ -1,7 +1,16 @@
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { requestCameraPermission, requestGalleryPermission } from '../utils/permissions';
+
+// FileSystem será importado dinamicamente apenas em plataformas nativas
+let FileSystem = null;
+const getFileSystem = async () => {
+  if (Platform.OS === 'web') return null;
+  if (!FileSystem) {
+    FileSystem = await import('expo-file-system/legacy');
+  }
+  return FileSystem;
+};
 
 /**
  * Image Service for Educultivo
@@ -19,15 +28,23 @@ const IMAGE_CONFIG = {
   maxFileSize: 300000, // 300KB max file size
 };
 
-const STORAGE_DIR = `${FileSystem.documentDirectory}images/`;
+let STORAGE_DIR = '';
 
 /**
  * Ensure the images directory exists
  */
 const ensureDirectoryExists = async () => {
-  const dirInfo = await FileSystem.getInfoAsync(STORAGE_DIR);
+  if (Platform.OS === 'web') return;
+  const fs = await getFileSystem();
+  if (!fs) return;
+  
+  if (!STORAGE_DIR) {
+    STORAGE_DIR = `${fs.documentDirectory}images/`;
+  }
+  
+  const dirInfo = await fs.getInfoAsync(STORAGE_DIR);
   if (!dirInfo.exists) {
-    await FileSystem.makeDirectoryAsync(STORAGE_DIR, { intermediates: true });
+    await fs.makeDirectoryAsync(STORAGE_DIR, { intermediates: true });
   }
 };
 
@@ -40,8 +57,16 @@ const ensureDirectoryExists = async () => {
  */
 const compressImage = async (uri) => {
   try {
+    // Na web, retornar URI original (compressão não suportada da mesma forma)
+    if (Platform.OS === 'web') {
+      return uri;
+    }
+    
+    const fs = await getFileSystem();
+    if (!fs) return uri;
+    
     // Get image info
-    const imageInfo = await FileSystem.getInfoAsync(uri);
+    const imageInfo = await fs.getInfoAsync(uri);
     
     // If image is already small enough, return original
     if (imageInfo.size < IMAGE_CONFIG.maxFileSize) {
@@ -74,7 +99,7 @@ const compressImage = async (uri) => {
     );
 
     // Check if compression was successful
-    const compressedInfo = await FileSystem.getInfoAsync(manipulatedImage.uri);
+    const compressedInfo = await fs.getInfoAsync(manipulatedImage.uri);
     
     // If compressed image is still too large, try more aggressive compression
     if (compressedInfo.size > IMAGE_CONFIG.maxFileSize) {
@@ -130,6 +155,14 @@ const compressImage = async (uri) => {
  */
 const saveImageToLocal = async (uri, filename = null) => {
   try {
+    // Na web, retornar URI original (não há sistema de arquivos local)
+    if (Platform.OS === 'web') {
+      return uri;
+    }
+    
+    const fs = await getFileSystem();
+    if (!fs) return uri;
+    
     await ensureDirectoryExists();
     
     // Generate filename if not provided
@@ -137,7 +170,7 @@ const saveImageToLocal = async (uri, filename = null) => {
     const localUri = `${STORAGE_DIR}${finalFilename}`;
     
     // Copy image to local directory
-    await FileSystem.copyAsync({
+    await fs.copyAsync({
       from: uri,
       to: localUri,
     });
@@ -277,9 +310,13 @@ export const showImagePickerOptions = () => {
  */
 export const deleteLocalImage = async (uri) => {
   try {
-    const fileInfo = await FileSystem.getInfoAsync(uri);
+    if (Platform.OS === 'web') return false;
+    const fs = await getFileSystem();
+    if (!fs) return false;
+    
+    const fileInfo = await fs.getInfoAsync(uri);
     if (fileInfo.exists) {
-      await FileSystem.deleteAsync(uri);
+      await fs.deleteAsync(uri);
       return true;
     }
     return false;
@@ -296,7 +333,11 @@ export const deleteLocalImage = async (uri) => {
  */
 export const getImageInfo = async (uri) => {
   try {
-    const info = await FileSystem.getInfoAsync(uri);
+    if (Platform.OS === 'web') return { exists: true, uri };
+    const fs = await getFileSystem();
+    if (!fs) return { exists: true, uri };
+    
+    const info = await fs.getInfoAsync(uri);
     return info;
   } catch (error) {
     console.error('Error getting image info:', error);
@@ -311,18 +352,22 @@ export const getImageInfo = async (uri) => {
  */
 export const cleanupOldImages = async (maxAge = 30 * 24 * 60 * 60 * 1000) => {
   try {
+    if (Platform.OS === 'web') return 0;
+    const fs = await getFileSystem();
+    if (!fs) return 0;
+    
     await ensureDirectoryExists();
     
-    const files = await FileSystem.readDirectoryAsync(STORAGE_DIR);
+    const files = await fs.readDirectoryAsync(STORAGE_DIR);
     const now = Date.now();
     let deletedCount = 0;
     
     for (const file of files) {
       const filePath = `${STORAGE_DIR}${file}`;
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      const fileInfo = await fs.getInfoAsync(filePath);
       
       if (fileInfo.exists && (now - fileInfo.modificationTime) > maxAge) {
-        await FileSystem.deleteAsync(filePath);
+        await fs.deleteAsync(filePath);
         deletedCount++;
       }
     }

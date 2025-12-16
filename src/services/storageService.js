@@ -4,7 +4,7 @@
  */
 
 import { supabase } from './supabase';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 /**
  * Decodifica base64 para Uint8Array (compatível com React Native)
@@ -61,15 +61,25 @@ export const StorageService = {
 
       console.log(`[StorageService] Upload: bucket=${bucket}, path=${path}`);
 
-      // Ler arquivo como base64
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      console.log(`[StorageService] Base64 lido: ${base64.length} chars`);
-
-      // Converter para bytes
-      const bytes = base64ToUint8Array(base64);
+      let bytes;
+      
+      if (Platform.OS === 'web') {
+        // Na web, usar fetch para obter o blob da imagem
+        console.log('[StorageService] Usando método web...');
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        bytes = new Uint8Array(arrayBuffer);
+      } else {
+        // Em plataformas nativas, importar FileSystem dinamicamente
+        const FileSystem = await import('expo-file-system/legacy');
+        const base64 = await FileSystem.readAsStringAsync(imageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        console.log(`[StorageService] Base64 lido: ${base64.length} chars`);
+        bytes = base64ToUint8Array(base64);
+      }
+      
       console.log(`[StorageService] Bytes: ${bytes.length}`);
 
       // Upload para Supabase

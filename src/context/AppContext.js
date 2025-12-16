@@ -508,14 +508,26 @@ export const AppProvider = ({ children }) => {
 
   const createPost = async (postData) => {
     try {
+      console.log('🚀 AppContext.createPost iniciado');
+      console.log('📊 Estado atual:');
+      console.log('  - state.user:', state.user?.id);
+      console.log('  - session?.user:', session?.user?.id);
+      console.log('  - isAuthenticated:', state.isAuthenticated);
+      
       // BUG FIX #1: Validação rigorosa de autenticação com session
       const userId = state.user?.id || session?.user?.id;
       if (!userId) {
         console.error('❌ No authenticated user found');
+        console.error('❌ Debug info:');
+        console.error('  - state.user:', state.user);
+        console.error('  - session:', session);
+        console.error('  - session?.user:', session?.user);
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
       
       console.log('📝 Creating post with userId:', userId);
+      console.log('📝 postData:', JSON.stringify(postData, null, 2));
+      
       const newPost = await postService.createPost(userId, postData);
       
       // Verificar se post foi criado com sucesso

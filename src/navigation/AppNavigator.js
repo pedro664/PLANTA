@@ -15,6 +15,19 @@ import EditPostScreen from '../screens/EditPostScreen';
 import EditPlantScreen from '../screens/EditPlantScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 
+// Community screens
+import UserProfileScreen from '../screens/UserProfileScreen';
+import ChatScreen from '../screens/ChatScreen';
+import ConversationsScreen from '../screens/ConversationsScreen';
+import FriendsScreen from '../screens/FriendsScreen';
+import SharePlantScreen from '../screens/SharePlantScreen';
+
+// Group screens
+import GroupsScreen from '../screens/GroupsScreen';
+import CreateGroupScreen from '../screens/CreateGroupScreen';
+import GroupChatScreen from '../screens/GroupChatScreen';
+import GroupDetailsScreen from '../screens/GroupDetailsScreen';
+
 // Import theme and utilities
 import { colors } from '../theme/colors';
 import { getGestureConfig } from '../utils/gestureUtils';
@@ -143,6 +156,72 @@ const AppNavigator = () => {
               options={{
                 headerShown: false,
                 presentation: 'modal',
+              }}
+            />
+            <Stack.Screen 
+              name="UserProfile" 
+              component={UserProfileScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="Chat" 
+              component={ChatScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="Conversations" 
+              component={ConversationsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="Friends" 
+              component={FriendsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="SharePlant" 
+              component={SharePlantScreen}
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+              }}
+            />
+            {/* Group screens */}
+            <Stack.Screen 
+              name="Groups" 
+              component={GroupsScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="CreateGroup" 
+              component={CreateGroupScreen}
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+              }}
+            />
+            <Stack.Screen 
+              name="GroupChat" 
+              component={GroupChatScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="GroupDetails" 
+              component={GroupDetailsScreen}
+              options={{
+                headerShown: false,
               }}
             />
           </>

@@ -20,15 +20,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { ToastComponent } from './src/components/Toast';
 import OfflineIndicator from './src/components/OfflineIndicator';
 
-// Esconder splash imediatamente ao iniciar
-SplashScreen.preventAutoHideAsync()
-  .then(() => {
-    // Esconder após 1 segundo no máximo
-    setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, 1000);
-  })
-  .catch(() => {});
+// Manter splash nativa visível até o app estar pronto
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   const [appReady, setAppReady] = useState(false);
@@ -42,27 +35,38 @@ export default function App() {
     'Overlock-BlackItalic': Overlock_900Black_Italic,
   });
 
+  // Esconder splash nativa quando fontes estiverem carregadas
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded || appReady) {
+      // Pequeno delay para garantir que a UI está renderizada
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, appReady]);
+
   useEffect(() => {
-    // Marcar app como pronto imediatamente ou após fontes
+    // Timeout de segurança - esconder splash após 3 segundos mesmo se fontes não carregarem
     const timer = setTimeout(() => {
       setAppReady(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }, 500);
+    }, 3000);
 
     if (fontsLoaded) {
       setAppReady(true);
-      SplashScreen.hideAsync().catch(() => {});
       clearTimeout(timer);
     }
 
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
-  // Sempre renderizar o app - não bloquear por fontes
+  // Não renderizar nada até estar pronto (splash nativa fica visível)
+  if (!fontsLoaded && !appReady) {
+    return null;
+  }
+
   return (
     <SimpleErrorBoundary>
       <SafeAreaProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
           <AppProvider>
             <AppNavigator />
             <OfflineIndicator />

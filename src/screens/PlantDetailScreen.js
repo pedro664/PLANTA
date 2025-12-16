@@ -227,12 +227,20 @@ const PlantDetailScreen = ({ route, navigation }) => {
           <Ionicons name="arrow-back" size={24} color={colors.botanical.dark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{plant.name}</Text>
-        <TouchableOpacity 
-          style={styles.headerButton}
-          onPress={() => setQrModalVisible(true)}
-        >
-          <Ionicons name="qr-code" size={24} color={colors.botanical.dark} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('SharePlant', { plant })}
+          >
+            <Ionicons name="share-social-outline" size={24} color={colors.botanical.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => setQrModalVisible(true)}
+          >
+            <Ionicons name="qr-code" size={24} color={colors.botanical.dark} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView 
@@ -480,6 +488,10 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 8,
     width: 40,
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   headerTitle: {

@@ -1,17 +1,17 @@
 /**
  * Upload Service para Supabase Storage
- * VERSÃO SIMPLIFICADA E ROBUSTA para Android/iOS
+ * VERSÃO SIMPLIFICADA E ROBUSTA para Android/iOS/Web
  */
 
 import { supabase } from './supabase';
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
 
 // Configuração dos buckets de storage
 export const STORAGE_BUCKETS = {
   PLANTS: 'plant-images',
   POSTS: 'post-images',
-  AVATARS: 'avatars'
+  AVATARS: 'avatars',
+  GROUPS: 'group-images'
 };
 
 /**
@@ -89,39 +89,55 @@ export const uploadImage = async (imageData, bucket, folder = '') => {
     }
     console.log('👤 [uploadImage] Usuário:', user.id);
 
-    // Ler arquivo como base64
-    let base64Data;
+    // Ler arquivo e converter para bytes
+    let bytes;
     try {
       console.log('📖 [uploadImage] Lendo arquivo...');
       console.log('📖 [uploadImage] URI completa:', uri);
+      console.log('📖 [uploadImage] Platform:', Platform.OS);
       
-      // Verificar se o arquivo existe
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      console.log('📖 [uploadImage] File info:', JSON.stringify(fileInfo));
-      
-      if (!fileInfo.exists) {
-        throw new Error('Arquivo não encontrado: ' + uri);
+      if (Platform.OS === 'web') {
+        // Na web, usar fetch para obter o blob da imagem
+        console.log('🌐 [uploadImage] Usando método web...');
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        bytes = new Uint8Array(arrayBuffer);
+        console.log('✅ [uploadImage] Blob convertido. Tamanho:', bytes.length);
+      } else {
+        // Em plataformas nativas, importar e usar FileSystem dinamicamente
+        console.log('📱 [uploadImage] Usando FileSystem nativo...');
+        const FileSystem = await import('expo-file-system/legacy');
+        
+        // Verificar se o arquivo existe
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        console.log('📖 [uploadImage] File info:', JSON.stringify(fileInfo));
+        
+        if (!fileInfo.exists) {
+          throw new Error('Arquivo não encontrado: ' + uri);
+        }
+        
+        const base64Data = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        if (!base64Data || base64Data.length === 0) {
+          throw new Error('Arquivo vazio ou não pôde ser lido');
+        }
+        
+        console.log('✅ [uploadImage] Arquivo lido. Tamanho base64:', base64Data.length);
+        
+        // Converter base64 para bytes
+        console.log('🔄 [uploadImage] Convertendo base64 para bytes...');
+        bytes = base64ToUint8Array(base64Data);
       }
       
-      base64Data = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      if (!base64Data || base64Data.length === 0) {
-        throw new Error('Arquivo vazio ou não pôde ser lido');
-      }
-      
-      console.log('✅ [uploadImage] Arquivo lido. Tamanho base64:', base64Data.length);
+      console.log('✅ [uploadImage] Bytes criados:', bytes.length);
     } catch (readError) {
       console.error('❌ [uploadImage] Erro ao ler arquivo:', readError);
       console.error('❌ [uploadImage] Stack:', readError.stack);
       throw new Error(`Não foi possível ler a imagem: ${readError.message}`);
     }
-
-    // Converter base64 para bytes
-    console.log('🔄 [uploadImage] Convertendo base64 para bytes...');
-    const bytes = base64ToUint8Array(base64Data);
-    console.log('✅ [uploadImage] Bytes criados:', bytes.length);
 
     // Validar tamanho (máximo 10MB)
     const MAX_SIZE = 10 * 1024 * 1024;
@@ -203,6 +219,22 @@ export const uploadPostImage = async (imageData, postId) => {
 export const uploadAvatarImage = async (imageData, userId) => {
   console.log('👤 [uploadAvatarImage] User ID:', userId);
   return uploadImage(imageData, STORAGE_BUCKETS.AVATARS, `users/${userId}`);
+};
+
+/**
+ * Upload de foto de grupo (perfil)
+ */
+export const uploadGroupImage = async (imageData, groupId) => {
+  console.log('👥 [uploadGroupImage] Group ID:', groupId);
+  return uploadImage(imageData, STORAGE_BUCKETS.GROUPS, `groups/${groupId}`);
+};
+
+/**
+ * Upload de imagem de mensagem de grupo
+ */
+export const uploadGroupMessageImage = async (imageData, groupId, userId) => {
+  console.log('💬 [uploadGroupMessageImage] Group ID:', groupId, 'User ID:', userId);
+  return uploadImage(imageData, STORAGE_BUCKETS.GROUPS, `messages/${groupId}/${userId}`);
 };
 
 /**

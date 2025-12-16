@@ -6,6 +6,7 @@
 import { supabase } from './supabase';
 import { uploadPostImage, replaceImage, STORAGE_BUCKETS } from './uploadService';
 import { logAndNotifyError } from '../utils/errorUtils';
+import { withAuth, ensureAuthenticated } from '../utils/authUtils';
 
 export const postService = {
   /**
@@ -160,22 +161,43 @@ export const postService = {
    * Criar um novo post
    */
   async createPost(userId, postData) {
-    try {
+    return await withAuth(async (authenticatedUser, session) => {
+      console.log('🚀 postService.createPost iniciado');
+      console.log('👤 userId fornecido:', userId);
+      console.log('👤 userId autenticado:', authenticatedUser.id);
+      console.log('📝 postData:', JSON.stringify(postData, null, 2));
+      
+      // Verificar consistência do userId
+      if (authenticatedUser.id !== userId) {
+        throw new Error(`Inconsistência de usuário: esperado ${userId}, obtido ${authenticatedUser.id}`);
+      }
+      
       let imageUrl = null;
+      
+      // Preparar dados do post
+      const postInsertData = {
+        user_id: userId,
+        plant_id: postData.plant_id || null,
+        image_url: null, // Will be updated after upload
+        description: postData.description,
+        category: postData.category || 'all',
+        tags: postData.tags || [],
+      };
+      
+      console.log('📄 Dados para inserção:', JSON.stringify(postInsertData, null, 2));
       
       // First create the post record to get an ID
       const { data: postRecord, error: postError } = await supabase
         .from('posts')
-        .insert([{
-          user_id: userId,
-          plant_id: postData.plant_id || null,
-          image_url: null, // Will be updated after upload
-          description: postData.description,
-          category: postData.category || 'all',
-          tags: postData.tags || [],
-        }])
+        .insert([postInsertData])
         .select()
         .single();
+
+      console.log('📊 Resultado da inserção:');
+      console.log('  - postRecord:', postRecord?.id);
+      console.log('  - postError:', postError?.message);
+      console.log('  - postError code:', postError?.code);
+      console.log('  - postError details:', JSON.stringify(postError, null, 2));
 
       if (postError) throw postError;
 
@@ -263,16 +285,9 @@ export const postService = {
         .eq('id', postRecord.id)
         .single();
       
+      console.log('✅ Post criado com sucesso:', finalPost?.id);
       return finalPost;
-    } catch (error) {
-      console.error('Erro ao criar post:', error);
-      logAndNotifyError(error, {
-        context: 'postService.createPost',
-        userMessage: 'Erro ao criar post',
-        suggestion: 'Tente novamente mais tarde',
-      });
-      throw error;
-    }
+    }, { retries: 2, refreshToken: true });
   },
 
   /**
@@ -315,15 +330,48 @@ export const postService = {
    */
   async deletePost(postId) {
     try {
+      console.log('🗑️ [deletePost] Iniciando exclusão do post:', postId);
+      
+      // Verificar autenticação
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('❌ [deletePost] Usuário não autenticado:', authError);
+        throw new Error('Usuário não autenticado. Faça login para excluir posts.');
+      }
+      console.log('👤 [deletePost] Usuário autenticado:', user.id);
+      
+      // Verificar se o post pertence ao usuário
+      const { data: post, error: fetchError } = await supabase
+        .from('posts')
+        .select('id, user_id')
+        .eq('id', postId)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ [deletePost] Erro ao buscar post:', fetchError);
+        throw new Error('Post não encontrado');
+      }
+      
+      if (post.user_id !== user.id) {
+        console.error('❌ [deletePost] Post não pertence ao usuário:', { postUserId: post.user_id, currentUserId: user.id });
+        throw new Error('Você não tem permissão para excluir este post');
+      }
+      
+      // Deletar o post
       const { error } = await supabase
         .from('posts')
         .delete()
         .eq('id', postId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [deletePost] Erro ao deletar:', error);
+        throw error;
+      }
+      
+      console.log('✅ [deletePost] Post excluído com sucesso:', postId);
       return true;
     } catch (error) {
-      console.error('Erro ao deletar post:', error);
+      console.error('❌ [deletePost] Erro:', error);
       throw error;
     }
   },
