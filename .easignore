@@ -1,0 +1,64 @@
+# EAS Build Ignore File
+
+# Android build folder (local builds)
+android/
+
+# iOS
+ios/
+
+# Git
+.git/
+.github/
+
+# Dependencies (will be installed fresh)
+node_modules/
+
+# Expo cache
+.expo/
+.expo-shared/
+
+# Build outputs
+dist/
+web-build/
+*.apk
+*.aab
+*.ipa
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+__tests__/
+*.test.js
+*.spec.js
+coverage/
+
+# Scripts (not needed for build)
+scripts/
+
+# MCP server (not needed for mobile build)
+mcp-server/
+
+# Temporary
+*.tmp
+*.temp
+temp-build/
+.cache/
