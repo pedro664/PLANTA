@@ -55,7 +55,7 @@ export default {
     scheme: "planta-app",
     updates: {
       fallbackToCacheTimeout: 0,
-      url: "https://u.expo.dev/48a25647-c50d-4072-8610-f3c5b70ffbbe"
+      url: "https://u.expo.dev/c5aa848d-53da-44e9-aa38-eb55f3179db5"
     },
     runtimeVersion: "1.0.0",
     assetBundlePatterns: ["**/*"],
@@ -85,7 +85,7 @@ export default {
     ],
     extra: {
       eas: {
-        projectId: "48a25647-c50d-4072-8610-f3c5b70ffbbe"
+        projectId: "c5aa848d-53da-44e9-aa38-eb55f3179db5"
       },
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
