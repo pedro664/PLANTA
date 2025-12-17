@@ -357,6 +357,101 @@ export const groupService = {
   },
 
   /**
+   * Deletar mensagem do grupo (apenas próprias mensagens)
+   */
+  async deleteMessage(groupId, messageId) {
+    try {
+      console.log('🗑️ [deleteGroupMessage] Iniciando exclusão:', { groupId, messageId });
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+      console.log('👤 [deleteGroupMessage] Usuário:', user.id);
+
+      // Verificar se a mensagem pertence ao usuário
+      const { data: message, error: fetchError } = await supabase
+        .from('group_messages')
+        .select('id, sender_id, image_url')
+        .eq('id', messageId)
+        .eq('group_id', groupId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ [deleteGroupMessage] Erro ao buscar mensagem:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('📩 [deleteGroupMessage] Mensagem encontrada:', { 
+        id: message.id, 
+        sender_id: message.sender_id,
+        hasImage: !!message.image_url 
+      });
+      
+      if (message.sender_id !== user.id) {
+        throw new Error('Você só pode deletar suas próprias mensagens');
+      }
+
+      // Se tiver imagem, tentar deletar do storage
+      if (message.image_url && message.image_url.includes('supabase.co')) {
+        try {
+          const { deleteImage } = await import('./uploadService');
+          const urlParts = message.image_url.split('/storage/v1/object/public/');
+          if (urlParts[1]) {
+            const bucketAndPath = urlParts[1].split('/');
+            const bucket = bucketAndPath.shift();
+            const path = bucketAndPath.join('/');
+            console.log('🖼️ [deleteGroupMessage] Deletando imagem do storage:', { bucket, path });
+            await deleteImage(bucket, path);
+          }
+        } catch (deleteError) {
+          console.warn('⚠️ [deleteGroupMessage] Não foi possível deletar imagem do storage:', deleteError);
+        }
+      }
+
+      // Deletar a mensagem - usar apenas o ID para garantir que funcione
+      console.log('🗑️ [deleteGroupMessage] Executando DELETE na tabela group_messages...');
+      const { data: deleteData, error: deleteError } = await supabase
+        .from('group_messages')
+        .delete()
+        .eq('id', messageId)
+        .select();
+
+      console.log('📊 [deleteGroupMessage] Resultado do DELETE:', { 
+        deleteData, 
+        deleteError,
+        deletedRows: deleteData?.length || 0
+      });
+
+      if (deleteError) {
+        console.error('❌ [deleteGroupMessage] Erro no DELETE:', deleteError);
+        throw deleteError;
+      }
+      
+      // Verificar se realmente deletou
+      if (!deleteData || deleteData.length === 0) {
+        console.warn('⚠️ [deleteGroupMessage] Nenhuma linha foi deletada! Verificando RLS...');
+        
+        // Tentar verificar se a mensagem ainda existe
+        const { data: checkMsg } = await supabase
+          .from('group_messages')
+          .select('id')
+          .eq('id', messageId)
+          .single();
+        
+        if (checkMsg) {
+          console.error('❌ [deleteGroupMessage] Mensagem ainda existe após DELETE! Possível problema de RLS.');
+          throw new Error('Falha ao deletar mensagem. Verifique as permissões do banco de dados.');
+        }
+      }
+      
+      console.log('✅ [deleteGroupMessage] Mensagem deletada com sucesso');
+      return true;
+    } catch (error) {
+      console.error('❌ [deleteGroupMessage] Erro:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Inscrever-se para novas mensagens do grupo
    */
   subscribeToGroupMessages(groupId, callback) {

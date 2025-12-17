@@ -15,8 +15,9 @@ import {
   Image,
   Modal,
   Dimensions,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import Text from '../components/Text';
@@ -24,7 +25,7 @@ import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { groupService } from '../services/groupService';
 import { useAppContext } from '../context/AppContext';
-import { showErrorToast } from '../components/Toast';
+import { showErrorToast, showSuccessToast } from '../components/Toast';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const IMAGE_MAX_WIDTH = SCREEN_WIDTH * 0.6;
@@ -33,6 +34,7 @@ const IMAGE_MAX_HEIGHT = SCREEN_HEIGHT * 0.4;
 const GroupChatScreen = ({ navigation, route }) => {
   const { group } = route.params;
   const { user: currentUser } = useAppContext();
+  const insets = useSafeAreaInsets();
   
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -44,6 +46,40 @@ const GroupChatScreen = ({ navigation, route }) => {
   
   const flatListRef = useRef(null);
   const subscriptionRef = useRef(null);
+  
+  // Calculate safe bottom padding for input
+  const inputBottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom;
+
+  const handleDeleteImage = (message) => {
+    // Only allow deleting own images
+    if (message.sender?.id !== currentUser?.id) {
+      showErrorToast('Você só pode deletar suas próprias imagens');
+      return;
+    }
+
+    Alert.alert(
+      'Deletar imagem',
+      'Tem certeza que deseja deletar esta imagem?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Deletar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await groupService.deleteMessage(group.id, message.id);
+              setMessages(prev => prev.filter(m => m.id !== message.id));
+              showSuccessToast('Imagem deletada');
+              setSelectedImage(null);
+            } catch (error) {
+              console.error('Erro ao deletar imagem:', error);
+              showErrorToast('Erro ao deletar imagem');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const pickImage = async () => {
     try {
@@ -244,7 +280,7 @@ const GroupChatScreen = ({ navigation, route }) => {
             )}
             {isImageMessage ? (
               <TouchableOpacity 
-                onPress={() => setSelectedImage(item.image_url)}
+                onPress={() => setSelectedImage({ url: item.image_url, message: item })}
                 style={[styles.imageBubble, isOwnMessage ? styles.ownBubble : styles.otherBubble]}
               >
                 <Image 
@@ -338,7 +374,7 @@ const GroupChatScreen = ({ navigation, route }) => {
         )}
 
         {/* Input */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: spacing.md + inputBottomPadding }]}>
           <TouchableOpacity 
             style={styles.attachButton}
             onPress={pickImage}
@@ -379,9 +415,17 @@ const GroupChatScreen = ({ navigation, route }) => {
           <TouchableOpacity style={styles.closeImageButton} onPress={() => setSelectedImage(null)}>
             <Ionicons name="close" size={28} color={colors.botanical.base} />
           </TouchableOpacity>
+          {selectedImage?.message?.sender?.id === currentUser?.id && (
+            <TouchableOpacity 
+              style={styles.deleteImageButton} 
+              onPress={() => handleDeleteImage(selectedImage.message)}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF4444" />
+            </TouchableOpacity>
+          )}
           {selectedImage && (
             <Image 
-              source={{ uri: selectedImage }} 
+              source={{ uri: selectedImage.url }} 
               style={styles.fullImage}
               resizeMode="contain"
             />
@@ -477,6 +521,15 @@ const styles = StyleSheet.create({
   },
   closeImageButton: {
     position: 'absolute', top: 50, right: 20, zIndex: 10, padding: spacing.sm,
+  },
+  deleteImageButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
   },
   fullImage: {
     width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.8,

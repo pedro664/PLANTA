@@ -4,6 +4,14 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "development"
+    },
     "preview": {
       "android": {
         "buildType": "apk"
@@ -14,20 +22,14 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtd3V4c3R5aXVyc3B0dGZmeWt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNDU5NjAsImV4cCI6MjA4MDkyMTk2MH0.X2EmLwowSPitPRg4xp833Tome9CQBHqZD8VXSbbM0so"
       }
     },
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
+    "production": {
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
-      "channel": "development"
-    },
-    "quick": {
-      "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+      "ios": {
+        "resourceClass": "m-medium"
       },
-      "channel": "quick",
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://vmwuxstyiurspttffykt.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtd3V4c3R5aXVyc3B0dGZmeWt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNDU5NjAsImV4cCI6MjA4MDkyMTk2MH0.X2EmLwowSPitPRg4xp833Tome9CQBHqZD8VXSbbM0so"
@@ -35,6 +37,15 @@
     }
   },
   "submit": {
-    "preview": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "internal"
+      },
+      "ios": {
+        "appleId": "your-apple-id@email.com",
+        "ascAppId": "your-app-store-connect-app-id"
+      }
+    }
   }
 }

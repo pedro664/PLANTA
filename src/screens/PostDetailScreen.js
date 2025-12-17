@@ -10,7 +10,7 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeAreaStyles, getResponsiveSpacing } from '../utils/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import Text from '../components/Text';
@@ -33,6 +33,10 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
+  const insets = useSafeAreaInsets();
+  
+  // Calculate safe bottom padding for input
+  const inputBottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom;
   
   // Get the latest post data from context
   const currentPost = posts.find(p => p.id === postId) || post;
@@ -308,7 +312,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           </ScrollView>
 
           {/* Comment input */}
-          <Animated.View style={[styles.commentInputContainer, { transform: [{ scale: commentInputScale }] }]}>
+          <Animated.View style={[styles.commentInputContainer, { transform: [{ scale: commentInputScale }], paddingBottom: spacing.md + inputBottomPadding }]}>
             <TextInput
               style={styles.commentInput}
               placeholder="Adicione um comentário..."

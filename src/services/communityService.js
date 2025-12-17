@@ -326,11 +326,11 @@ export const communityService = {
           // Obter última mensagem
           const { data: lastMessage } = await supabase
             .from('messages')
-            .select('content, created_at, sender_id, is_read')
+            .select('content, message_type, image_url, created_at, sender_id, is_read')
             .eq('conversation_id', conv.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           // Contar mensagens não lidas
           const { count: unreadCount } = await supabase
@@ -368,6 +368,7 @@ export const communityService = {
           id,
           content,
           message_type,
+          image_url,
           is_read,
           created_at,
           sender:sender_id(id, name, avatar_url)
@@ -385,9 +386,43 @@ export const communityService = {
   },
 
   /**
+   * Upload de imagem para mensagem direta
+   */
+  async uploadChatImage(uri, conversationId) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+      
+      // Import upload service dynamically
+      const { uploadImage, STORAGE_BUCKETS } = await import('./uploadService');
+      const result = await uploadImage({ uri }, STORAGE_BUCKETS.GROUPS, `dm/${conversationId}/${user.id}`);
+      return result.url;
+    } catch (error) {
+      console.error('Erro ao fazer upload de imagem do chat:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Enviar mensagem com imagem
+   */
+  async sendImageMessage(conversationId, imageUri) {
+    try {
+      // Upload da imagem
+      const imageUrl = await this.uploadChatImage(imageUri, conversationId);
+      
+      // Enviar mensagem com a imagem
+      return await this.sendMessage(conversationId, '', 'image', imageUrl);
+    } catch (error) {
+      console.error('Erro ao enviar imagem:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Enviar mensagem
    */
-  async sendMessage(conversationId, content, messageType = 'text') {
+  async sendMessage(conversationId, content, messageType = 'text', imageUrl = null) {
     try {
       console.log('📤 [sendMessage] Iniciando envio de mensagem...');
       console.log('📤 [sendMessage] conversationId:', conversationId);
@@ -422,18 +457,25 @@ export const communityService = {
       }
       console.log('✅ [sendMessage] Usuário faz parte da conversa');
 
+      const messageData = {
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content,
+        message_type: messageType
+      };
+
+      if (imageUrl) {
+        messageData.image_url = imageUrl;
+      }
+
       const { data, error } = await supabase
         .from('messages')
-        .insert([{
-          conversation_id: conversationId,
-          sender_id: user.id,
-          content,
-          message_type: messageType
-        }])
+        .insert([messageData])
         .select(`
           id,
           content,
           message_type,
+          image_url,
           is_read,
           created_at,
           sender:sender_id(id, name, avatar_url)
@@ -459,6 +501,102 @@ export const communityService = {
       return data;
     } catch (error) {
       console.error('❌ [sendMessage] Erro:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Deletar mensagem (apenas próprias mensagens)
+   */
+  async deleteMessage(conversationId, messageId) {
+    try {
+      console.log('🗑️ [deleteMessage] Iniciando exclusão:', { conversationId, messageId });
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+      console.log('👤 [deleteMessage] Usuário:', user.id);
+
+      // Verificar se a mensagem pertence ao usuário
+      const { data: message, error: fetchError } = await supabase
+        .from('messages')
+        .select('id, sender_id, image_url')
+        .eq('id', messageId)
+        .eq('conversation_id', conversationId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ [deleteMessage] Erro ao buscar mensagem:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('📩 [deleteMessage] Mensagem encontrada:', { 
+        id: message.id, 
+        sender_id: message.sender_id,
+        hasImage: !!message.image_url 
+      });
+      
+      if (message.sender_id !== user.id) {
+        throw new Error('Você só pode deletar suas próprias mensagens');
+      }
+
+      // Se tiver imagem, tentar deletar do storage
+      if (message.image_url && message.image_url.includes('supabase.co')) {
+        try {
+          const { deleteImage } = await import('./uploadService');
+          const urlParts = message.image_url.split('/storage/v1/object/public/');
+          if (urlParts[1]) {
+            const bucketAndPath = urlParts[1].split('/');
+            const bucket = bucketAndPath.shift();
+            const path = bucketAndPath.join('/');
+            console.log('🖼️ [deleteMessage] Deletando imagem do storage:', { bucket, path });
+            await deleteImage(bucket, path);
+          }
+        } catch (deleteError) {
+          console.warn('⚠️ [deleteMessage] Não foi possível deletar imagem do storage:', deleteError);
+        }
+      }
+
+      // Deletar a mensagem - usar apenas o ID para garantir que funcione
+      console.log('🗑️ [deleteMessage] Executando DELETE na tabela messages...');
+      const { data: deleteData, error: deleteError, count } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
+        .select();
+
+      console.log('📊 [deleteMessage] Resultado do DELETE:', { 
+        deleteData, 
+        deleteError, 
+        count,
+        deletedRows: deleteData?.length || 0
+      });
+
+      if (deleteError) {
+        console.error('❌ [deleteMessage] Erro no DELETE:', deleteError);
+        throw deleteError;
+      }
+      
+      // Verificar se realmente deletou
+      if (!deleteData || deleteData.length === 0) {
+        console.warn('⚠️ [deleteMessage] Nenhuma linha foi deletada! Verificando RLS...');
+        
+        // Tentar verificar se a mensagem ainda existe
+        const { data: checkMsg } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('id', messageId)
+          .single();
+        
+        if (checkMsg) {
+          console.error('❌ [deleteMessage] Mensagem ainda existe após DELETE! Possível problema de RLS.');
+          throw new Error('Falha ao deletar mensagem. Verifique as permissões do banco de dados.');
+        }
+      }
+      
+      console.log('✅ [deleteMessage] Mensagem deletada com sucesso');
+      return true;
+    } catch (error) {
+      console.error('❌ [deleteMessage] Erro:', error);
       throw error;
     }
   },

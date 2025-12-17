@@ -1,4 +1,3 @@
-import React from 'react';
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +18,22 @@ const Tab = createBottomTabNavigator();
 const TabNavigator = () => {
   const insets = useSafeAreaInsets();
   const { isTablet, hasNotch } = getDeviceType();
-  
+
+  // Calculate safe bottom padding - ensure enough space above Android nav buttons
+  const getBottomPadding = () => {
+    // On Android, always add extra padding to avoid system navigation
+    if (Platform.OS === 'android') {
+      // Use insets.bottom if available, otherwise use a safe default
+      const androidNavHeight = Math.max(insets.bottom, 16);
+      return androidNavHeight + 8; // Extra 8px buffer
+    }
+    // On iOS, use insets for notch devices
+    return Math.max(insets.bottom, hasNotch ? 34 : 8);
+  };
+
+  const bottomPadding = getBottomPadding();
+  const tabBarHeight = (isTablet ? 70 : 60) + bottomPadding;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -58,9 +72,9 @@ const TabNavigator = () => {
           right: 0,
           backgroundColor: 'rgba(247, 245, 240, 0.95)',
           borderTopWidth: 0,
-          paddingBottom: Math.max(insets.bottom, hasNotch ? 34 : 8),
+          paddingBottom: bottomPadding,
           paddingTop: isTablet ? 12 : 8,
-          height: (isTablet ? 70 : 60) + Math.max(insets.bottom, hasNotch ? 34 : 8),
+          height: tabBarHeight,
           borderTopLeftRadius: isTablet ? 24 : 20,
           borderTopRightRadius: isTablet ? 24 : 20,
           shadowColor: '#000',
@@ -90,8 +104,8 @@ const TabNavigator = () => {
         headerTintColor: colors.botanical.dark,
       })}
     >
-      <Tab.Screen 
-        name="Home" 
+      <Tab.Screen
+        name="Home"
         component={HomeScreen}
         options={{
           title: 'Jardim',
@@ -99,8 +113,8 @@ const TabNavigator = () => {
           headerShown: false, // Remove header to match original design
         }}
       />
-      <Tab.Screen 
-        name="Plants" 
+      <Tab.Screen
+        name="Plants"
         component={MyPlantsScreen}
         options={{
           title: 'Minhas Plantas',
@@ -108,8 +122,8 @@ const TabNavigator = () => {
           headerShown: false, // Remove header to match original design
         }}
       />
-      <Tab.Screen 
-        name="Community" 
+      <Tab.Screen
+        name="Community"
         component={CommunityScreen}
         options={{
           title: 'Comunidade',
@@ -117,8 +131,8 @@ const TabNavigator = () => {
           headerShown: false, // Remove header to match original design
         }}
       />
-      <Tab.Screen 
-        name="Profile" 
+      <Tab.Screen
+        name="Profile"
         component={ProfileScreen}
         options={{
           title: 'Perfil',

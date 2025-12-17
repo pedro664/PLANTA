@@ -1,13 +1,19 @@
+require('dotenv').config();
 const { Client } = require('pg');
 
 const client = new Client({
-  host: 'db.vmwuxstyiurspttffykt.supabase.co',
+  host: process.env.SUPABASE_DB_HOST || 'db.vmwuxstyiurspttffykt.supabase.co',
   port: 5432,
   database: 'postgres',
   user: 'postgres',
-  password: 'mCalwR3dDpT2Xn9o',
+  password: process.env.SUPABASE_DB_PASSWORD,
   ssl: { rejectUnauthorized: false }
 });
+
+if (!process.env.SUPABASE_DB_PASSWORD) {
+  console.error('❌ SUPABASE_DB_PASSWORD environment variable is required');
+  process.exit(1);
+}
 
 async function checkSchema() {
   await client.connect();

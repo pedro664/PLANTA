@@ -13,26 +13,156 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Modal,
+  Dimensions,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import Text from '../components/Text';
 import { colors } from '../theme/colors';
 import { spacing, borderRadius } from '../theme/spacing';
 import { communityService } from '../services/communityService';
 import { useAppContext } from '../context/AppContext';
+import { showErrorToast, showSuccessToast } from '../components/Toast';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IMAGE_MAX_WIDTH = SCREEN_WIDTH * 0.6;
+const IMAGE_MAX_HEIGHT = SCREEN_HEIGHT * 0.4;
 
 const ChatScreen = ({ navigation, route }) => {
   const { conversationId, otherUser } = route.params;
   const { user: currentUser } = useAppContext();
+  const insets = useSafeAreaInsets();
   
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageDimensions, setImageDimensions] = useState({});
   
   const flatListRef = useRef(null);
   const subscriptionRef = useRef(null);
+  
+  // Calculate safe bottom padding for input
+  const inputBottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom;
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showErrorToast('Permissão necessária para acessar fotos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        sendImageMessage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      showErrorToast('Erro ao selecionar imagem');
+    }
+  };
+
+  const sendImageMessage = async (imageUri) => {
+    setIsUploadingImage(true);
+    
+    // Optimistic update
+    const tempMessage = {
+      id: `temp-img-${Date.now()}`,
+      content: '',
+      message_type: 'image',
+      image_url: imageUri,
+      created_at: new Date().toISOString(),
+      sender: { id: currentUser?.id, name: currentUser?.name, avatar_url: currentUser?.avatar_url },
+      _isTemp: true,
+      _isUploading: true
+    };
+    setMessages(prev => [...prev, tempMessage]);
+
+    try {
+      const sentMessage = await communityService.sendImageMessage(conversationId, imageUri);
+      setMessages(prev => prev.map(m => m.id === tempMessage.id ? sentMessage : m));
+    } catch (error) {
+      console.error('Erro ao enviar imagem:', error);
+      setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+      showErrorToast('Erro ao enviar imagem');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = (message) => {
+    // Only allow deleting own images
+    if (message.sender?.id !== currentUser?.id) {
+      showErrorToast('Você só pode deletar suas próprias imagens');
+      return;
+    }
+
+    Alert.alert(
+      'Deletar imagem',
+      'Tem certeza que deseja deletar esta imagem?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Deletar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await communityService.deleteMessage(conversationId, message.id);
+              setMessages(prev => prev.filter(m => m.id !== message.id));
+              showSuccessToast('Imagem deletada');
+              setSelectedImage(null);
+            } catch (error) {
+              console.error('Erro ao deletar imagem:', error);
+              showErrorToast('Erro ao deletar imagem');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Calculate image dimensions maintaining aspect ratio
+  const getImageStyle = (imageUrl) => {
+    const dims = imageDimensions[imageUrl];
+    if (!dims) {
+      Image.getSize(imageUrl, (width, height) => {
+        const aspectRatio = width / height;
+        let displayWidth, displayHeight;
+        
+        if (aspectRatio > 1) {
+          displayWidth = Math.min(IMAGE_MAX_WIDTH, width);
+          displayHeight = displayWidth / aspectRatio;
+        } else {
+          displayHeight = Math.min(IMAGE_MAX_HEIGHT, height);
+          displayWidth = displayHeight * aspectRatio;
+        }
+        
+        setImageDimensions(prev => ({
+          ...prev,
+          [imageUrl]: { width: displayWidth, height: displayHeight }
+        }));
+      }, () => {
+        setImageDimensions(prev => ({
+          ...prev,
+          [imageUrl]: { width: IMAGE_MAX_WIDTH, height: IMAGE_MAX_WIDTH * 0.75 }
+        }));
+      });
+      
+      return { width: IMAGE_MAX_WIDTH, height: IMAGE_MAX_WIDTH * 0.75 };
+    }
+    return dims;
+  };
 
   const loadMessages = useCallback(async () => {
     try {
@@ -164,6 +294,7 @@ const ChatScreen = ({ navigation, route }) => {
     const isOwnMessage = item.sender?.id === currentUser?.id;
     const showDate = index === 0 || 
       formatDate(item.created_at) !== formatDate(messages[index - 1]?.created_at);
+    const isImageMessage = item.message_type === 'image';
 
     return (
       <View>
@@ -177,28 +308,55 @@ const ChatScreen = ({ navigation, route }) => {
           isOwnMessage ? styles.ownMessage : styles.otherMessage
         ]}>
           {!isOwnMessage && (
-            <Image
-              source={{ uri: item.sender?.avatar_url || 'https://via.placeholder.com/32' }}
-              style={styles.messageAvatar}
-            />
+            item.sender?.avatar_url ? (
+              <Image
+                source={{ uri: item.sender.avatar_url }}
+                style={styles.messageAvatar}
+              />
+            ) : (
+              <View style={[styles.messageAvatar, styles.avatarPlaceholder]}>
+                <Ionicons name="person" size={14} color={colors.botanical.sage} />
+              </View>
+            )
           )}
-          <View style={[
-            styles.messageBubble,
-            isOwnMessage ? styles.ownBubble : styles.otherBubble
-          ]}>
-            <Text style={[
-              styles.messageText,
-              isOwnMessage ? styles.ownMessageText : styles.otherMessageText
+          {isImageMessage ? (
+            <TouchableOpacity 
+              onPress={() => setSelectedImage({ url: item.image_url, message: item })}
+              style={[styles.imageBubble, isOwnMessage ? styles.ownBubble : styles.otherBubble]}
+            >
+              <Image 
+                source={{ uri: item.image_url }} 
+                style={[styles.messageImage, getImageStyle(item.image_url)]}
+                resizeMode="cover"
+              />
+              {item._isUploading && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={colors.botanical.base} />
+                </View>
+              )}
+              <Text style={[styles.messageTime, styles.imageTime, isOwnMessage ? styles.ownMessageTime : styles.otherMessageTime]}>
+                {formatTime(item.created_at)}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={[
+              styles.messageBubble,
+              isOwnMessage ? styles.ownBubble : styles.otherBubble
             ]}>
-              {item.content}
-            </Text>
-            <Text style={[
-              styles.messageTime,
-              isOwnMessage ? styles.ownMessageTime : styles.otherMessageTime
-            ]}>
-              {formatTime(item.created_at)}
-            </Text>
-          </View>
+              <Text style={[
+                styles.messageText,
+                isOwnMessage ? styles.ownMessageText : styles.otherMessageText
+              ]}>
+                {item.content}
+              </Text>
+              <Text style={[
+                styles.messageTime,
+                isOwnMessage ? styles.ownMessageTime : styles.otherMessageTime
+              ]}>
+                {formatTime(item.created_at)}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -216,10 +374,16 @@ const ChatScreen = ({ navigation, route }) => {
           style={styles.headerProfile}
           onPress={() => navigation.navigate('UserProfile', { userId: otherUser.id })}
         >
-          <Image
-            source={{ uri: otherUser.avatar_url || 'https://via.placeholder.com/40' }}
-            style={styles.headerAvatar}
-          />
+          {otherUser.avatar_url ? (
+            <Image
+              source={{ uri: otherUser.avatar_url }}
+              style={styles.headerAvatar}
+            />
+          ) : (
+            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+              <Ionicons name="person" size={20} color={colors.botanical.sage} />
+            </View>
+          )}
           <View>
             <Text style={styles.headerName}>{otherUser.name}</Text>
             <Text style={styles.headerStatus}>Toque para ver perfil</Text>
@@ -258,7 +422,18 @@ const ChatScreen = ({ navigation, route }) => {
         )}
 
         {/* Input */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: spacing.md + inputBottomPadding }]}>
+          <TouchableOpacity 
+            style={styles.attachButton}
+            onPress={pickImage}
+            disabled={isUploadingImage}
+          >
+            {isUploadingImage ? (
+              <ActivityIndicator size="small" color={colors.botanical.clay} />
+            ) : (
+              <Ionicons name="image-outline" size={24} color={colors.botanical.clay} />
+            )}
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={newMessage}
@@ -281,6 +456,30 @@ const ChatScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Image Preview Modal */}
+      <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
+        <View style={styles.imageModalOverlay}>
+          <TouchableOpacity style={styles.closeImageButton} onPress={() => setSelectedImage(null)}>
+            <Ionicons name="close" size={28} color={colors.botanical.base} />
+          </TouchableOpacity>
+          {selectedImage?.message?.sender?.id === currentUser?.id && (
+            <TouchableOpacity 
+              style={styles.deleteImageButton} 
+              onPress={() => handleDeleteImage(selectedImage.message)}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF4444" />
+            </TouchableOpacity>
+          )}
+          {selectedImage && (
+            <Image 
+              source={{ uri: selectedImage.url }} 
+              style={styles.fullImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -313,6 +512,11 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: spacing.sm,
+  },
+  headerAvatarPlaceholder: {
+    backgroundColor: colors.botanical.sand,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerName: {
     fontSize: 16,
@@ -384,6 +588,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginRight: spacing.xs,
   },
+  avatarPlaceholder: {
+    backgroundColor: colors.botanical.sand,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   messageBubble: {
     maxWidth: '75%',
     padding: spacing.sm,
@@ -426,6 +635,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(46, 74, 61, 0.1)',
   },
+  attachButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.xs,
+  },
   input: {
     flex: 1,
     minHeight: 40,
@@ -449,6 +665,53 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: colors.botanical.sage,
     opacity: 0.5,
+  },
+  imageBubble: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    maxWidth: '75%',
+  },
+  messageImage: {
+    borderRadius: borderRadius.sm,
+    minWidth: 100,
+    minHeight: 100,
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: borderRadius.sm,
+  },
+  imageTime: {
+    marginTop: spacing.xs,
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeImageButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: spacing.sm,
+  },
+  deleteImageButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+  },
+  fullImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.8,
   },
 });
 

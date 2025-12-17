@@ -22,12 +22,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build:dev": "npx eas build --profile development",
-    "build:preview": "npx eas build --profile preview",
-    "build:production": "npx eas build --profile production",
-    "build:ios": "npx eas build --platform ios",
-    "build:android": "npx eas build --platform android",
-    "prepare-release": "node scripts/strip-secrets.js",
+    "build:dev": "npx eas build --profile development --platform android",
+    "build:preview": "npx eas build --profile preview --platform android",
+    "build:production": "npx eas build --profile production --platform android",
+    "build:ios": "npx eas build --platform ios --profile production",
+    "build:android": "npx eas build --platform android --profile production",
     "submit:ios": "npx eas submit --platform ios",
     "submit:android": "npx eas submit --platform android"
   },
@@ -53,7 +52,6 @@
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.15",
     "lottie-react-native": "~7.3.1",
-    "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -63,6 +61,9 @@
     "react-native-svg": "15.12.1",
     "react-native-toast-message": "^2.3.3",
     "react-native-web": "^0.21.0"
+  },
+  "devDependencies": {
+    "babel-plugin-transform-remove-console": "^6.9.4"
   },
   "private": true
 }

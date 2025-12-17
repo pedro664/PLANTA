@@ -74,20 +74,20 @@ const LazyImage = ({
       if (cachedUri) {
         setImageUri(cachedUri);
         
-        // Preload image to ensure it's ready
-        Image.prefetch(cachedUri)
-          .then(() => {
-            setIsLoading(false);
-            animateImageIn();
-          })
-          .catch((error) => {
-            console.warn('Error prefetching image:', error);
-            setIsLoading(false);
-            setHasError(true);
-          });
-      } else {
+        // Try to preload image, but don't fail if prefetch doesn't work (web compatibility)
+        try {
+          await Image.prefetch(cachedUri);
+        } catch {
+          // Prefetch failed (common on web), continue anyway
+        }
+        
         setIsLoading(false);
-        setHasError(true);
+        animateImageIn();
+      } else {
+        // No cached URI, try using original source directly
+        setImageUri(sourceUri);
+        setIsLoading(false);
+        animateImageIn();
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -128,7 +128,10 @@ const LazyImage = ({
   };
 
   const handleImageError = (error) => {
-    console.error('Image load error:', error);
+    // Only log in development, and make it less noisy
+    if (__DEV__) {
+      console.warn('LazyImage: Failed to load image:', sourceUri?.substring(0, 50));
+    }
     setHasError(true);
     setIsLoading(false);
     
@@ -192,13 +195,14 @@ const LazyImage = ({
   const renderErrorState = () => {
     if (!hasError) return null;
 
+    // Show a friendly placeholder instead of error icon
     return (
       <View style={[styles.errorContainer, style]}>
         <View style={styles.errorContent}>
           <Ionicons 
-            name="alert-circle-outline" 
+            name={getPlaceholderIcon()} 
             size={Math.min((style?.width || 40) * 0.3, 40)} 
-            color={colors.system.error} 
+            color={colors.botanical.sage} 
           />
         </View>
       </View>
@@ -208,12 +212,16 @@ const LazyImage = ({
   const renderImage = () => {
     if (!imageUri || hasError) return null;
 
+    // Extract resizeMode from style if present (to avoid deprecation warning)
+    const { resizeMode: styleResizeMode, ...cleanStyle } = StyleSheet.flatten(style) || {};
+    const finalResizeMode = resizeMode || styleResizeMode || 'cover';
+
     return (
       <Animated.View style={{ opacity: fadeAnim }}>
         <Image
           source={{ uri: imageUri }}
-          style={[styles.image, style]}
-          resizeMode={resizeMode}
+          style={[styles.image, cleanStyle]}
+          resizeMode={finalResizeMode}
           onLoad={handleImageLoad}
           onError={handleImageError}
           {...props}

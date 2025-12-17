@@ -224,10 +224,39 @@ const QRScannerScreen = ({ navigation }) => {
           </>
         ) : (
           <>
-            <Text style={styles.instructionsTitle}>Escaneie o QR Code da planta</Text>
-            <Text style={styles.instructionsText}>
-              Posicione o QR Code dentro da área de escaneamento
-            </Text>
+            <View style={styles.instructionsHeader}>
+              <Ionicons name="qr-code-outline" size={28} color={colors.botanical.clay} />
+              <Text style={styles.instructionsTitle}>Escaneie o QR Code da planta</Text>
+            </View>
+            
+            <View style={styles.instructionsList}>
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionNumber}>
+                  <Text style={styles.instructionNumberText}>1</Text>
+                </View>
+                <Text style={styles.instructionsText}>
+                  Aponte a câmera para o QR Code impresso no vaso
+                </Text>
+              </View>
+              
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionNumber}>
+                  <Text style={styles.instructionNumberText}>2</Text>
+                </View>
+                <Text style={styles.instructionsText}>
+                  Mantenha o código dentro da área marcada
+                </Text>
+              </View>
+              
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionNumber}>
+                  <Text style={styles.instructionNumberText}>3</Text>
+                </View>
+                <Text style={styles.instructionsText}>
+                  A planta será identificada automaticamente
+                </Text>
+              </View>
+            </View>
 
             {scanned && (
               <TouchableOpacity style={styles.scanAgainButton} onPress={resetScanner}>
@@ -351,20 +380,46 @@ const styles = StyleSheet.create({
   instructionsContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  instructionsHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    gap: 10,
   },
   instructionsTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.botanical.base,
     textAlign: 'center',
-    marginBottom: 8,
+  },
+  instructionsList: {
+    gap: 8,
+  },
+  instructionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  instructionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.botanical.clay,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instructionNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.botanical.base,
   },
   instructionsText: {
+    flex: 1,
     fontSize: 14,
     color: colors.botanical.sage,
-    textAlign: 'center',
     lineHeight: 20,
   },
   scanAgainButton: {

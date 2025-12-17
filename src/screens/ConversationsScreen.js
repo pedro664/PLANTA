@@ -66,7 +66,10 @@ const ConversationsScreen = ({ navigation }) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   };
 
-  const renderConversation = ({ item }) => (
+  const renderConversation = ({ item }) => {
+    const hasAvatar = item.otherUser?.avatar_url && !item.otherUser.avatar_url.includes('placeholder');
+    
+    return (
     <TouchableOpacity
       style={styles.conversationItem}
       onPress={() => navigation.navigate('Chat', {
@@ -76,10 +79,16 @@ const ConversationsScreen = ({ navigation }) => {
       activeOpacity={0.7}
     >
       <View style={styles.avatarContainer}>
-        <Image
-          source={{ uri: item.otherUser?.avatar_url || 'https://via.placeholder.com/50' }}
-          style={styles.avatar}
-        />
+        {hasAvatar ? (
+          <Image
+            source={{ uri: item.otherUser.avatar_url }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Ionicons name="person" size={28} color={colors.botanical.sage} />
+          </View>
+        )}
         {item.unreadCount > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>
@@ -109,11 +118,12 @@ const ConversationsScreen = ({ navigation }) => {
           ]}
           numberOfLines={1}
         >
-          {item.lastMessage?.content || 'Nenhuma mensagem'}
+          {item.lastMessage?.message_type === 'image' ? '📷 Imagem' : (item.lastMessage?.content || 'Nenhuma mensagem')}
         </Text>
       </View>
     </TouchableOpacity>
   );
+  };
 
   if (isLoading) {
     return (
@@ -215,6 +225,11 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: colors.botanical.sage + '30',
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.botanical.sand,
   },
   unreadBadge: {
     position: 'absolute',

@@ -89,6 +89,16 @@ export const plantService = {
             status: 'fine',
             last_watered: plantData.last_watered || new Date().toISOString(),
             tips: plantData.tips || [],
+            planted_date: plantData.planted_date || null,
+            // Campos avançados
+            plant_type: plantData.plant_type || null,
+            fertilizer_type: plantData.fertilizer_type || null,
+            fertilizer_info: plantData.fertilizer_info || null,
+            pruning_frequency: plantData.pruning_frequency || null,
+            pruning_info: plantData.pruning_info || null,
+            harvest_frequency: plantData.harvest_frequency || null,
+            harvest_info: plantData.harvest_info || null,
+            // Campos de controle de imagem
             image_status: 'uploading', // Marca como pendente de upload
             image_size_kb: null,
             image_uploaded_at: null,

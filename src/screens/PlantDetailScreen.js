@@ -103,7 +103,7 @@ const PlantDetailScreen = ({ route, navigation }) => {
       biweekly: 'A cada 2 semanas',
       monthly: 'Mensalmente',
     };
-    return frequencies[frequency] || frequency;
+    return frequencies[frequency] || frequency || 'Não definido';
   };
 
   const getLightNeedsText = (needs) => {
@@ -111,8 +111,88 @@ const PlantDetailScreen = ({ route, navigation }) => {
       direct: 'Sol direto',
       indirect: 'Luz indireta',
       shade: 'Sombra',
+      fullsun: 'Pleno sol',
+      hybrid: 'Híbrido',
     };
-    return lightNeeds[needs] || needs;
+    return lightNeeds[needs] || needs || 'Não definido';
+  };
+
+  const getPlantTypeText = (type) => {
+    const types = {
+      edible: 'Comestível',
+      medicinal: 'Medicinal',
+      ornamental: 'Ornamental',
+      aromatic: 'Aromática',
+      succulent: 'Suculenta',
+      fruit: 'Frutífera',
+      vegetable: 'Hortaliça',
+      herb: 'Erva',
+      flower: 'Flor',
+      tree: 'Árvore',
+      vine: 'Trepadeira',
+      aquatic: 'Aquática',
+      other: 'Outra',
+    };
+    return types[type] || type || null;
+  };
+
+  const getPlantTypeIcon = (type) => {
+    const icons = {
+      edible: 'restaurant',
+      medicinal: 'medkit',
+      ornamental: 'flower',
+      aromatic: 'sparkles',
+      succulent: 'water',
+      fruit: 'nutrition',
+      vegetable: 'leaf',
+      herb: 'leaf',
+      flower: 'rose',
+      tree: 'git-branch',
+      vine: 'git-merge',
+      aquatic: 'water',
+      other: 'ellipse',
+    };
+    return icons[type] || 'leaf';
+  };
+
+  const getFertilizerTypeText = (type) => {
+    const types = {
+      organic: 'Orgânico',
+      chemical: 'Químico',
+      npk: 'NPK',
+      compost: 'Composto',
+      humus: 'Húmus',
+      bokashi: 'Bokashi',
+      liquid: 'Líquido',
+      slow_release: 'Liberação lenta',
+      foliar: 'Foliar',
+      none: 'Não aduba',
+    };
+    return types[type] || type || null;
+  };
+
+  const getPruningFrequencyText = (frequency) => {
+    const frequencies = {
+      monthly: 'Mensal',
+      quarterly: 'Trimestral',
+      biannual: 'Semestral',
+      annual: 'Anual',
+      as_needed: 'Conforme necessário',
+    };
+    return frequencies[frequency] || frequency || null;
+  };
+
+  const getHarvestFrequencyText = (frequency) => {
+    const frequencies = {
+      daily: 'Diária',
+      weekly: 'Semanal',
+      biweekly: 'Quinzenal',
+      monthly: 'Mensal',
+      quarterly: 'Trimestral',
+      seasonal: 'Sazonal',
+      annual: 'Anual',
+    };
+    return frequencies[frequency] || frequency || null;
   };
 
   const getCareTypeIcon = (type) => {
@@ -317,6 +397,96 @@ const PlantDetailScreen = ({ route, navigation }) => {
             </View>
           )}
         </View>
+
+        {/* Plant Type Badge */}
+        {plant.plant_type && getPlantTypeText(plant.plant_type) && (
+          <View style={styles.section}>
+            <View style={styles.plantTypeBadge}>
+              <View style={styles.plantTypeIconContainer}>
+                <Ionicons name={getPlantTypeIcon(plant.plant_type)} size={24} color={colors.botanical.clay} />
+              </View>
+              <View style={styles.plantTypeInfo}>
+                <Text style={styles.plantTypeLabel}>Tipo de Planta</Text>
+                <Text style={styles.plantTypeValue}>{getPlantTypeText(plant.plant_type)}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Fertilizer Section */}
+        {(plant.fertilizer_type || plant.fertilizer_info) && (
+          <View style={styles.section}>
+            <View style={styles.advancedSectionHeader}>
+              <Ionicons name="leaf" size={20} color={colors.botanical.clay} />
+              <Text style={styles.sectionTitle}>Adubação</Text>
+            </View>
+            <View style={styles.advancedInfoCard}>
+              {plant.fertilizer_type && getFertilizerTypeText(plant.fertilizer_type) && (
+                <View style={styles.advancedInfoRow}>
+                  <Text style={styles.advancedInfoLabel}>Tipo:</Text>
+                  <View style={styles.advancedInfoBadge}>
+                    <Text style={styles.advancedInfoBadgeText}>{getFertilizerTypeText(plant.fertilizer_type)}</Text>
+                  </View>
+                </View>
+              )}
+              {plant.fertilizer_info && (
+                <View style={styles.advancedInfoDescription}>
+                  <Text style={styles.advancedInfoDescriptionText}>{plant.fertilizer_info}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Pruning Section */}
+        {(plant.pruning_frequency || plant.pruning_info) && (
+          <View style={styles.section}>
+            <View style={styles.advancedSectionHeader}>
+              <Ionicons name="cut" size={20} color={colors.botanical.clay} />
+              <Text style={styles.sectionTitle}>Poda</Text>
+            </View>
+            <View style={styles.advancedInfoCard}>
+              {plant.pruning_frequency && getPruningFrequencyText(plant.pruning_frequency) && (
+                <View style={styles.advancedInfoRow}>
+                  <Text style={styles.advancedInfoLabel}>Frequência:</Text>
+                  <View style={styles.advancedInfoBadge}>
+                    <Text style={styles.advancedInfoBadgeText}>{getPruningFrequencyText(plant.pruning_frequency)}</Text>
+                  </View>
+                </View>
+              )}
+              {plant.pruning_info && (
+                <View style={styles.advancedInfoDescription}>
+                  <Text style={styles.advancedInfoDescriptionText}>{plant.pruning_info}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Harvest Section */}
+        {(plant.harvest_frequency || plant.harvest_info) && (
+          <View style={styles.section}>
+            <View style={styles.advancedSectionHeader}>
+              <Ionicons name="basket" size={20} color={colors.botanical.clay} />
+              <Text style={styles.sectionTitle}>Colheita</Text>
+            </View>
+            <View style={styles.advancedInfoCard}>
+              {plant.harvest_frequency && getHarvestFrequencyText(plant.harvest_frequency) && (
+                <View style={styles.advancedInfoRow}>
+                  <Text style={styles.advancedInfoLabel}>Frequência:</Text>
+                  <View style={styles.advancedInfoBadge}>
+                    <Text style={styles.advancedInfoBadgeText}>{getHarvestFrequencyText(plant.harvest_frequency)}</Text>
+                  </View>
+                </View>
+              )}
+              {plant.harvest_info && (
+                <View style={styles.advancedInfoDescription}>
+                  <Text style={styles.advancedInfoDescriptionText}>{plant.harvest_info}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Tips Section */}
         {plant.tips && plant.tips.length > 0 && (
@@ -646,6 +816,89 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.botanical.dark,
+  },
+
+  // Plant Type Badge styles
+  plantTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.botanical.clay + '15',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.botanical.clay + '30',
+  },
+  plantTypeIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.botanical.clay + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  plantTypeInfo: {
+    flex: 1,
+  },
+  plantTypeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.botanical.sage,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  plantTypeValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.botanical.clay,
+  },
+
+  // Advanced Section styles
+  advancedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  advancedInfoCard: {
+    backgroundColor: colors.ui.background,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.botanical.sage + '20',
+  },
+  advancedInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  advancedInfoLabel: {
+    fontSize: 14,
+    color: colors.botanical.sage,
+    fontWeight: '500',
+  },
+  advancedInfoBadge: {
+    backgroundColor: colors.botanical.clay + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  advancedInfoBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.botanical.clay,
+  },
+  advancedInfoDescription: {
+    backgroundColor: colors.botanical.base,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
+  },
+  advancedInfoDescriptionText: {
+    fontSize: 14,
+    color: colors.botanical.dark,
+    lineHeight: 20,
   },
 
   // Tips styles

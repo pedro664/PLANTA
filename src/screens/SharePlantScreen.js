@@ -95,10 +95,16 @@ const SharePlantScreen = ({ navigation, route }) => {
         onPress={() => setSelectedUser(isSelected ? null : user)}
         activeOpacity={0.7}
       >
-        <Image
-          source={{ uri: user.avatar_url || 'https://via.placeholder.com/40' }}
-          style={styles.avatar}
-        />
+        {user.avatar_url ? (
+          <Image
+            source={{ uri: user.avatar_url }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Ionicons name="person" size={22} color={colors.botanical.sage} />
+          </View>
+        )}
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userLevel}>{user.level || 'Iniciante'}</Text>
@@ -127,10 +133,16 @@ const SharePlantScreen = ({ navigation, route }) => {
 
       {/* Plant Preview */}
       <View style={styles.plantPreview}>
-        <Image
-          source={{ uri: plant.image_url || 'https://via.placeholder.com/60' }}
-          style={styles.plantImage}
-        />
+        {plant.image_url ? (
+          <Image
+            source={{ uri: plant.image_url }}
+            style={styles.plantImage}
+          />
+        ) : (
+          <View style={[styles.plantImage, styles.plantImagePlaceholder]}>
+            <Ionicons name="leaf" size={28} color={colors.botanical.sage} />
+          </View>
+        )}
         <View style={styles.plantInfo}>
           <Text style={styles.plantName}>{plant.name}</Text>
           {plant.scientific_name && (
@@ -261,6 +273,11 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: colors.botanical.sage + '30',
   },
+  plantImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.botanical.sand,
+  },
   plantInfo: {
     flex: 1,
     marginLeft: spacing.md,
@@ -327,6 +344,11 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: colors.botanical.sage + '30',
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.botanical.sand,
   },
   userInfo: {
     flex: 1,
