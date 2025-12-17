@@ -22,12 +22,20 @@ import { showSuccessToast, showErrorToast } from '../components/Toast';
 const { width } = Dimensions.get('window');
 const cardWidth = (width - (spacing.md * 3)) / 2; // 2 columns with margins
 
+const TAB_BAR_HEIGHT = 65; // Height of the bottom tab bar
+
 const MyPlantsScreen = ({ navigation }) => {
   const { plants, getPlantsNeedingAttention, deletePlant } = useAppContext();
   const [filter, setFilter] = useState('all');
+  const insets = useSafeAreaInsets();
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveGrid = getResponsiveGrid(2);
   const responsiveSpacing = getResponsiveSpacing();
+  
+  // Calculate proper bottom spacing considering tab bar and safe area
+  const bottomInset = Math.max(insets.bottom, 0);
+  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 16; // Tab bar + safe area + margin
+  const contentBottomPadding = TAB_BAR_HEIGHT + bottomInset + 20;
 
   // Get filtered plants based on current filter
   const getFilteredPlants = () => {
@@ -291,12 +299,12 @@ const MyPlantsScreen = ({ navigation }) => {
   const dynamicStyles = {
     contentArea: {
       ...styles.contentArea,
-      paddingBottom: safeAreaStyles.contentPaddingBottom,
+      paddingBottom: contentBottomPadding,
       paddingHorizontal: responsiveSpacing,
     },
     fab: {
       ...styles.fab,
-      bottom: safeAreaStyles.fabBottom,
+      bottom: fabBottomPosition,
       right: responsiveSpacing,
     }
   };
@@ -375,7 +383,7 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
     paddingHorizontal: spacing.lg, // 24px like the original
-    paddingBottom: 85, // Adjusted for new tab bar height (65px + 20px margin)
+    // paddingBottom is set dynamically based on safe area insets
   },
 
   // Header styles
@@ -626,10 +634,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // FAB styles - adjusted for new tab bar height
+  // FAB styles - bottom position is set dynamically based on safe area
   fab: {
     position: 'absolute',
-    bottom: 80, // Adjusted for new tab bar height (65px + 15px margin)
+    // bottom is set dynamically in dynamicStyles
     right: spacing.lg, // right-6 = 24px
     width: 56, // Slightly smaller for better mobile experience
     height: 56,
@@ -642,6 +650,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
+    zIndex: 100, // Ensure FAB is always on top
   },
 });
 

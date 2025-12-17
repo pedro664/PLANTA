@@ -19,7 +19,7 @@ import {
 // } from 'react-native-reanimated';
 import Text from '../components/Text';
 import QRCodeGenerator from '../components/QRCodeGenerator';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeAreaStyles, getResponsiveSpacing } from '../utils/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
@@ -31,11 +31,18 @@ import { showSuccessToast, showErrorToast } from '../components/Toast';
 
 const { width } = Dimensions.get('window');
 
+const TAB_BAR_HEIGHT = 65;
+
 const PlantDetailScreen = ({ route, navigation }) => {
   const { plantId, plantData } = route.params || {};
   const { getPlantById, addCareLog, updatePlant, user } = useAppContext();
+  const insets = useSafeAreaInsets();
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
+  
+  // Calculate proper bottom spacing considering tab bar and safe area
+  const bottomInset = Math.max(insets.bottom, 0);
+  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 16;
   
   const [careModalVisible, setCareModalVisible] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
@@ -546,7 +553,7 @@ const PlantDetailScreen = ({ route, navigation }) => {
       {/* Floating Action Button - Only show for own plants */}
       {isOwnPlant && (
         <TouchableOpacity 
-          style={[styles.fab, { bottom: safeAreaStyles.fabBottom, right: responsiveSpacing }]}
+          style={[styles.fab, { bottom: fabBottomPosition, right: responsiveSpacing }]}
           onPress={openModal}
           activeOpacity={0.8}
         >
@@ -1010,10 +1017,10 @@ const styles = StyleSheet.create({
     color: colors.botanical.sage,
   },
 
-  // FAB styles
+  // FAB styles - bottom position should be set dynamically
   fab: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 100, // Default fallback, should be overridden dynamically
     right: spacing.lg,
     width: 56,
     height: 56,
@@ -1026,6 +1033,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
+    zIndex: 100,
   },
 
   // Modal styles
