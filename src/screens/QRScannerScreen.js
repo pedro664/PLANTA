@@ -22,6 +22,7 @@ import { showSuccessToast, showInfoToast, showErrorToast } from '../components/T
 import { useAppContext } from '../context/AppContext';
 import { parseQRData } from '../utils/qrCodeUtils';
 import { plantService } from '../services/plantService';
+import { playQRScannedSound } from '../services/soundService';
 
 const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = 250;
@@ -54,7 +55,7 @@ const QRScannerScreen = ({ navigation }) => {
       setIsLoading(false);
       Alert.alert(
         'QR Code Inválido',
-        parsedData.error || 'Este QR Code não é válido para o Educultivo.',
+        parsedData.error || 'Este QR Code não é válido para o EduCultivo.',
         [{ text: 'OK', onPress: () => setScanned(false) }]
       );
       return;
@@ -67,6 +68,8 @@ const QRScannerScreen = ({ navigation }) => {
 
         if (plant) {
           setIsLoading(false);
+          // Tocar som de sucesso ao escanear
+          playQRScannedSound();
           showSuccessToast(`Planta encontrada: ${plant.name}`);
           navigation.replace('PlantDetail', { plantId: parsedData.plantId });
           return;
@@ -78,6 +81,8 @@ const QRScannerScreen = ({ navigation }) => {
           
           if (plant) {
             setIsLoading(false);
+            // Tocar som de sucesso ao escanear
+            playQRScannedSound();
             showSuccessToast(`Planta encontrada: ${plant.name}`);
             // Navigate to plant details with the full plant data
             navigation.replace('PlantDetail', { 

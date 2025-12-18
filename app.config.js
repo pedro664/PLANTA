@@ -2,14 +2,14 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "Educultivo",
+    name: "EduCultivo",
     slug: "planta-app",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     newArchEnabled: true,
-    description: "Educultivo - Aplicativo para cuidar das suas plantas, acompanhar crescimento e conectar com uma comunidade de jardineiros.",
+    description: "EduCultivo - Aplicativo para cuidar das suas plantas, acompanhar crescimento e conectar com uma comunidade de jardineiros.",
     primaryColor: "#2E4A3D",
     splash: {
       image: "./assets/logo-loading.png",
@@ -28,8 +28,8 @@ export default {
         NSCameraUsageDescription: "Precisamos de acesso à câmera para você adicionar fotos das suas plantas e escanear QR codes para compartilhar plantas.",
         NSPhotoLibraryUsageDescription: "Precisamos de acesso à galeria para você escolher fotos das suas plantas do seu dispositivo.",
         NSPhotoLibraryAddUsageDescription: "Permitir que o app salve fotos das suas plantas na galeria.",
-        CFBundleDisplayName: "Educultivo",
-        CFBundleName: "Educultivo"
+        CFBundleDisplayName: "EduCultivo",
+        CFBundleName: "EduCultivo"
       }
     },
     android: {

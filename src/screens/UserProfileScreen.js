@@ -246,6 +246,9 @@ const UserProfileScreen = ({ navigation, route }) => {
             style={styles.avatar}
           />
           <Text style={styles.userName}>{profile?.name}</Text>
+          {profile?.username && (
+            <Text style={styles.userUsername}>@{profile.username}</Text>
+          )}
           <Text style={styles.userLevel}>{profile?.level || 'Iniciante'}</Text>
           
           {/* Stats */}
@@ -375,6 +378,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.botanical.dark,
     marginTop: spacing.md,
+  },
+  userUsername: {
+    fontSize: 14,
+    color: colors.botanical.sage,
+    marginTop: 4,
   },
   userLevel: {
     fontSize: 14,

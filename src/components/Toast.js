@@ -69,6 +69,51 @@ const toastConfig = {
       onClose={hide}
     />
   ),
+
+  badge: ({ text1, text2, onPress, hide }) => (
+    <BadgeToast
+      title={text1}
+      badgeName={text2}
+      onPress={onPress}
+      onClose={hide}
+    />
+  ),
+};
+
+// Badge Toast Component - Special celebration toast for earning badges
+const BadgeToast = ({ title, badgeName, onPress, onClose }) => {
+  return (
+    <TouchableOpacity
+      style={styles.badgeContainer}
+      onPress={onPress}
+      activeOpacity={0.9}
+    >
+      {/* Celebration icon */}
+      <View style={styles.badgeIconContainer}>
+        <Ionicons name="trophy" size={28} color="#FFD700" />
+      </View>
+
+      {/* Content */}
+      <View style={styles.badgeContent}>
+        <Text style={styles.badgeTitle}>
+          {title || '🎉 Nova Conquista!'}
+        </Text>
+        <Text style={styles.badgeName} numberOfLines={1}>
+          {badgeName}
+        </Text>
+      </View>
+
+      {/* Sparkle decoration */}
+      <View style={styles.sparkleContainer}>
+        <Ionicons name="sparkles" size={20} color="#FFD700" />
+      </View>
+
+      {/* Close button */}
+      <TouchableOpacity style={styles.badgeCloseButton} onPress={onClose}>
+        <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 };
 
 // Custom Toast Component
@@ -163,6 +208,58 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     marginLeft: spacing.sm,
   },
+
+  // Badge Toast styles
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.botanical.dark,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+    minHeight: 72,
+    maxWidth: 400,
+    width: '92%',
+    alignSelf: 'center',
+  },
+  badgeIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  badgeContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  badgeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFD700',
+    marginBottom: 2,
+  },
+  badgeName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.botanical.base,
+  },
+  sparkleContainer: {
+    marginRight: spacing.sm,
+  },
+  badgeCloseButton: {
+    padding: spacing.xs,
+  },
 });
 
 // Helper functions to show toasts
@@ -214,6 +311,18 @@ export const showWarningToast = (message, options = {}) => {
   });
 };
 
+export const showBadgeToast = (badgeName, options = {}) => {
+  Toast.show({
+    type: 'badge',
+    text1: options.title || '🎉 Nova Conquista!',
+    text2: badgeName,
+    position: 'top',
+    visibilityTime: 5000,
+    topOffset: 50,
+    ...options,
+  });
+};
+
 // Component to render the Toast with custom config
 export const ToastComponent = () => {
   return <Toast config={toastConfig} />;
@@ -224,5 +333,6 @@ export default {
   showErrorToast,
   showInfoToast,
   showWarningToast,
+  showBadgeToast,
   ToastComponent,
 };

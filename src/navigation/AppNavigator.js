@@ -6,6 +6,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import TabNavigator from './TabNavigator';
 import SplashScreen from '../screens/SplashScreen';
 import AuthScreen from '../screens/AuthScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import AddPlantScreen from '../screens/AddPlantScreen';
 import PlantDetailScreen from '../screens/PlantDetailScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
@@ -35,11 +36,11 @@ import { useAppContext } from '../context/AppContext';
 
 const Stack = createStackNavigator();
 
-const AppNavigator = () => {
+const AppNavigator = ({ initialRoute }) => {
   const navigationRef = useRef(null);
   const { isAuthenticated } = useAppContext();
 
-  console.log('🧭 AppNavigator render - isAuthenticated:', isAuthenticated);
+  console.log('🧭 AppNavigator render - isAuthenticated:', isAuthenticated, 'initialRoute:', initialRoute);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -71,7 +72,25 @@ const AppNavigator = () => {
           ...getGestureConfig(),
         }}
       >
-        {!isAuthenticated ? (
+        {/* Reset Password screen - shown when user clicks recovery link */}
+        {initialRoute === 'ResetPassword' ? (
+          <>
+            <Stack.Screen 
+              name="ResetPassword" 
+              component={ResetPasswordScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen 
+              name="Auth" 
+              component={AuthScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+          </>
+        ) : !isAuthenticated ? (
           <>
             <Stack.Screen 
               name="Splash" 

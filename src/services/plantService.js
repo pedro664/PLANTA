@@ -98,6 +98,8 @@ export const plantService = {
             pruning_info: plantData.pruning_info || null,
             harvest_frequency: plantData.harvest_frequency || null,
             harvest_info: plantData.harvest_info || null,
+            // ID do catálogo para instruções detalhadas
+            catalog_id: plantData.catalog_id || null,
             // Campos de controle de imagem
             image_status: 'uploading', // Marca como pendente de upload
             image_size_kb: null,
@@ -136,12 +138,27 @@ export const plantService = {
             image_uploaded_at: uploadResult.uploadedAt || new Date().toISOString()
           })
           .eq('id', plantRecord.id)
-          .select()
+          .select(`
+            *,
+            care_logs (
+              id,
+              care_type,
+              notes,
+              care_date,
+              created_at
+            )
+          `)
           .single();
 
         if (updateError) throw updateError;
         
         console.log('✅ Planta atualizada com imagem no banco');
+        console.log('📊 Dados retornados:', JSON.stringify({
+          id: updatedPlant.id,
+          water_frequency: updatedPlant.water_frequency,
+          light_needs: updatedPlant.light_needs,
+          created_at: updatedPlant.created_at
+        }));
         return updatedPlant;
       } catch (uploadError) {
         console.error('❌ Erro ao fazer upload da imagem:', uploadError);
@@ -368,6 +385,56 @@ export const plantService = {
       return data || [];
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Search Plants'));
+    }
+  },
+
+  // Create plant from QR Code (copy from another user's plant)
+  createPlantFromQR: async (userId, plantData) => {
+    try {
+      console.log('🌱 Criando planta a partir de QR Code:', plantData.name);
+
+      const { data: newPlant, error } = await supabase
+        .from(TABLES.PLANTS)
+        .insert([
+          {
+            user_id: userId,
+            name: plantData.name,
+            scientific_name: plantData.scientific_name || null,
+            image_url: plantData.image_url || null,
+            description: plantData.description || null,
+            water_frequency: plantData.water_frequency || 'weekly',
+            light_needs: plantData.light_needs || 'indirect',
+            status: 'fine',
+            last_watered: new Date().toISOString(),
+            tips: plantData.tips || [],
+            plant_type: plantData.plant_type || null,
+            fertilizer_type: plantData.fertilizer_type || null,
+            fertilizer_info: plantData.fertilizer_info || null,
+            pruning_frequency: plantData.pruning_frequency || null,
+            pruning_info: plantData.pruning_info || null,
+            harvest_frequency: plantData.harvest_frequency || null,
+            harvest_info: plantData.harvest_info || null,
+            image_status: plantData.image_url ? 'supabase' : 'pending',
+          },
+        ])
+        .select(`
+          *,
+          care_logs (
+            id,
+            care_type,
+            notes,
+            care_date,
+            created_at
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Planta criada a partir de QR Code:', newPlant.id);
+      return newPlant;
+    } catch (error) {
+      throw new Error(handleSupabaseError(error, 'Create Plant From QR'));
     }
   },
 };

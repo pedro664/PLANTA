@@ -1,7 +1,7 @@
 import { InteractionManager } from 'react-native';
 
 /**
- * Performance Utilities for Educultivo
+ * Performance Utilities for EduCultivo
  * Provides utilities for optimizing FlatList performance and general app performance
  */
 

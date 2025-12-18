@@ -95,37 +95,52 @@ const ProfileScreen = ({ navigation }) => {
     return diffDays;
   };
 
-  // Badge definitions - exactly like the original
+  // Badge definitions - todas as badges disponíveis
   const badgeDefinitions = {
-    first_sprout: {
-      name: "Primeiro Broto",
-      icon: "add-circle",
+    first_plant: {
+      name: "Primeira Planta",
+      icon: "leaf",
+      color: '#4CAF50'
+    },
+    plant_collector: {
+      name: "Colecionador",
+      icon: "albums",
       color: colors.botanical.clay
+    },
+    plant_lover: {
+      name: "Amante de Plantas",
+      icon: "heart",
+      color: '#E91E63'
+    },
+    dedicated_caretaker: {
+      name: "Cuidador Dedicado",
+      icon: "heart-circle",
+      color: '#E91E63'
     },
     water_master: {
       name: "Mestre da Água",
       icon: "water",
-      color: '#059669' // green-600
+      color: '#2196F3'
     },
     green_thumb: {
       name: "Polegar Verde",
       icon: "thumbs-up",
-      color: '#059669' // emerald-600
-    },
-    community_star: {
-      name: "Estrela da Comunidade",
-      icon: "star",
-      color: '#F59E0B' // amber-500
-    },
-    plant_collector: {
-      name: "Colecionador",
-      icon: "library",
-      color: colors.botanical.sage
+      color: '#8BC34A'
     },
     dedication: {
       name: "Dedicação",
       icon: "trophy",
-      color: '#DC2626' // red-600
+      color: '#FF9800'
+    },
+    expert: {
+      name: "Especialista",
+      icon: "ribbon",
+      color: '#9C27B0'
+    },
+    community_star: {
+      name: "Estrela da Comunidade",
+      icon: "star",
+      color: '#FFC107'
     }
   };
 
@@ -144,6 +159,7 @@ const ProfileScreen = ({ navigation }) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm, setEditForm] = useState({
     name: user.name,
+    username: user.username || '',
     avatar: user.avatar_url,
   });
 
@@ -155,6 +171,7 @@ const ProfileScreen = ({ navigation }) => {
   const openModal = () => {
     setEditForm({
       name: user.name,
+      username: user.username || '',
       avatar: user.avatar_url,
     });
     setEditModalVisible(true);
@@ -180,10 +197,20 @@ const ProfileScreen = ({ navigation }) => {
       return;
     }
 
+    // Validar username se fornecido
+    if (editForm.username) {
+      const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+      if (!usernameRegex.test(editForm.username)) {
+        showErrorToast('Username deve ter 3-20 caracteres (letras, números e _)');
+        return;
+      }
+    }
+
     try {
       // Update user data
       const updateData = {
         name: editForm.name.trim(),
+        username: editForm.username.trim().toLowerCase() || null,
         avatarFile: editForm.avatarFile, // Pass the image file for upload
       };
 
@@ -197,7 +224,11 @@ const ProfileScreen = ({ navigation }) => {
       }, 1000);
     } catch (error) {
       console.error('Error updating profile:', error);
-      showErrorToast('Erro ao atualizar perfil. Tente novamente.');
+      if (error.message?.includes('username')) {
+        showErrorToast('Este username já está em uso');
+      } else {
+        showErrorToast('Erro ao atualizar perfil. Tente novamente.');
+      }
     }
   };
 
@@ -258,7 +289,9 @@ const ProfileScreen = ({ navigation }) => {
             <Image source={{ uri: user.avatar_url || null }} style={styles.avatar} />
           </View>
           <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.joinText}>Jardineira desde {joinYear}</Text>
+          {user.username && (
+            <Text style={styles.usernameText}>@{user.username}</Text>
+          )}
         </View>
 
         {/* XP Progress Bar */}
@@ -402,6 +435,25 @@ const ProfileScreen = ({ navigation }) => {
               />
             </View>
 
+            {/* Username Section */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalLabel}>Username</Text>
+              <View style={styles.usernameInputContainer}>
+                <Text style={styles.usernamePrefix}>@</Text>
+                <TextInput
+                  style={styles.usernameInput}
+                  value={editForm.username}
+                  onChangeText={(text) => setEditForm(prev => ({ ...prev, username: text.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                  placeholder="seu_username"
+                  placeholderTextColor={colors.botanical.sage}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={20}
+                />
+              </View>
+              <Text style={styles.usernameHint}>3-20 caracteres: letras, números e _</Text>
+            </View>
+
             {/* Info Section */}
             <View style={styles.modalSection}>
               <View style={styles.infoCard}>
@@ -460,10 +512,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.botanical.dark,
   },
-  joinText: {
+  usernameText: {
     color: colors.botanical.sage,
-    fontWeight: '400',
-    fontStyle: 'italic',
+    fontWeight: '500',
+    fontSize: 14,
+    marginTop: 4,
   },
 
   // XP section styles - exactly like the original
@@ -681,6 +734,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.botanical.dark,
     backgroundColor: colors.ui.background,
+  },
+  usernameInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.botanical.sage + '40',
+    borderRadius: 12,
+    backgroundColor: colors.ui.background,
+  },
+  usernamePrefix: {
+    paddingLeft: 16,
+    fontSize: 16,
+    color: colors.botanical.sage,
+    fontWeight: '600',
+  },
+  usernameInput: {
+    flex: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 12,
+    paddingRight: 16,
+    fontSize: 16,
+    color: colors.botanical.dark,
+  },
+  usernameHint: {
+    fontSize: 12,
+    color: colors.botanical.sage,
+    marginTop: 6,
   },
 
   // Info card styles

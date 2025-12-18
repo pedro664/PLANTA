@@ -1,5 +1,5 @@
 /**
- * Educultivo - Theme System
+ * EduCultivo - Theme System
  * Central export for all theme modules
  */
 

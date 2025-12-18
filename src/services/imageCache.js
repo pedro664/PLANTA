@@ -11,7 +11,7 @@ const getFileSystem = async () => {
 };
 
 /**
- * Image Cache Service for Educultivo
+ * Image Cache Service for EduCultivo
  * Provides efficient image caching with automatic cleanup and memory management
  */
 

@@ -1,5 +1,5 @@
 /**
- * Educultivo - Responsive Design Utilities
+ * EduCultivo - Responsive Design Utilities
  * Device detection and responsive design helpers
  */
 

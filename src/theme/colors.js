@@ -1,5 +1,5 @@
 /**
- * Educultivo - Color Palette
+ * EduCultivo - Color Palette
  * Botanical theme colors that transmit calm and connection with nature
  */
 

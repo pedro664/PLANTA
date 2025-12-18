@@ -16,6 +16,7 @@ import {
   Animated,
   Easing,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,13 +29,19 @@ import { textStyles } from '../theme/typography';
 const { width, height } = Dimensions.get('window');
 
 const AuthScreen = () => {
-  const { signIn, signUp, isLoading } = useAppContext();
+  const { signIn, signUp, resetPassword, isLoading } = useAppContext();
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     password: '',
   });
+  const [usernameError, setUsernameError] = useState('');
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -133,11 +140,62 @@ const AuthScreen = () => {
     }, 1500);
   };
 
+  const checkUsernameAvailability = async (username) => {
+    if (!username || username.length < 3) {
+      setUsernameError('');
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    setUsernameError('');
+
+    try {
+      const { userService } = await import('../services/userService');
+      const isAvailable = await userService.checkUsernameAvailability(username);
+      
+      if (!isAvailable) {
+        setUsernameError('Este username já está em uso');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar username:', error);
+      setUsernameError('Erro ao verificar username');
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
+  const handleUsernameChange = (text) => {
+    const cleanUsername = text.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setFormData(prev => ({ ...prev, username: cleanUsername }));
+    
+    // Debounce username check
+    if (cleanUsername.length >= 3) {
+      setTimeout(() => {
+        if (formData.username === cleanUsername) {
+          checkUsernameAvailability(cleanUsername);
+        }
+      }, 500);
+    } else {
+      setUsernameError('');
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       if (isSignUp) {
+        // Validar username antes de criar conta
+        if (!formData.username || formData.username.length < 3) {
+          setUsernameError('Username deve ter pelo menos 3 caracteres');
+          return;
+        }
+        
+        if (usernameError) {
+          return; // Não prosseguir se há erro de username
+        }
+
         await signUp(formData.email, formData.password, {
           name: formData.name,
+          username: formData.username,
         });
       } else {
         await signIn(formData.email, formData.password);
@@ -163,7 +221,8 @@ const AuthScreen = () => {
     ]).start();
 
     setIsSignUp(!isSignUp);
-    setFormData({ name: '', email: '', password: '' });
+    setFormData({ name: '', username: '', email: '', password: '' });
+    setUsernameError('');
   };
 
   return (
@@ -212,7 +271,7 @@ const AuthScreen = () => {
                 />
               </View>
             </View>
-            <Text style={styles.title}>Educultivo</Text>
+            <Text style={styles.title}>EduCultivo</Text>
             <Text style={styles.subtitle}>Cultive seu jardim digital</Text>
           </Animated.View>
 
@@ -236,19 +295,49 @@ const AuthScreen = () => {
               {/* Form inputs */}
               <View style={styles.inputContainer}>
                 {isSignUp && (
-                  <View style={styles.inputWrapper}>
-                    <Ionicons name="person-outline" size={20} color={colors.botanical.sage} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Nome completo"
-                      placeholderTextColor={colors.botanical.sage}
-                      value={formData.name}
-                      onChangeText={(text) =>
-                        setFormData((prev) => ({ ...prev, name: text }))
-                      }
-                      autoCapitalize="words"
-                    />
-                  </View>
+                  <>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="person-outline" size={20} color={colors.botanical.sage} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Nome completo"
+                        placeholderTextColor={colors.botanical.sage}
+                        value={formData.name}
+                        onChangeText={(text) =>
+                          setFormData((prev) => ({ ...prev, name: text }))
+                        }
+                        autoCapitalize="words"
+                      />
+                    </View>
+
+                    <View style={[styles.inputWrapper, usernameError && styles.inputWrapperError]}>
+                      <Text style={styles.usernamePrefix}>@</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="seu_username"
+                        placeholderTextColor={colors.botanical.sage}
+                        value={formData.username}
+                        onChangeText={handleUsernameChange}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        maxLength={20}
+                      />
+                      {isCheckingUsername && (
+                        <Ionicons name="time-outline" size={16} color={colors.botanical.sage} />
+                      )}
+                      {!isCheckingUsername && formData.username.length >= 3 && !usernameError && (
+                        <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                      )}
+                    </View>
+                    
+                    {usernameError ? (
+                      <Text style={styles.errorText}>{usernameError}</Text>
+                    ) : formData.username.length > 0 && formData.username.length < 3 ? (
+                      <Text style={styles.hintText}>Mínimo 3 caracteres</Text>
+                    ) : (
+                      <Text style={styles.hintText}>3-20 caracteres: letras, números e _</Text>
+                    )}
+                  </>
                 )}
 
                 <View style={styles.inputWrapper}>
@@ -299,6 +388,19 @@ const AuthScreen = () => {
                 )}
               </TouchableOpacity>
 
+              {/* Forgot password link - only show on login */}
+              {!isSignUp && (
+                <TouchableOpacity 
+                  style={styles.forgotPasswordButton} 
+                  onPress={() => {
+                    setResetEmail(formData.email);
+                    setShowForgotPassword(true);
+                  }}
+                >
+                  <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Toggle mode */}
               <TouchableOpacity style={styles.toggleButton} onPress={toggleMode}>
                 <Text style={styles.toggleText}>
@@ -315,6 +417,122 @@ const AuthScreen = () => {
 
           </Animated.View>
         </ScrollView>
+
+        {/* Forgot Password Modal */}
+        <Modal
+          visible={showForgotPassword}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setShowForgotPassword(false);
+            setResetEmailSent(false);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              {resetEmailSent ? (
+                // Success state - email sent
+                <>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.successIconContainer}>
+                      <Ionicons name="mail-open-outline" size={48} color={colors.botanical.dark} />
+                    </View>
+                    <Text style={styles.modalTitle}>Email Enviado!</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Enviamos um link de recuperação para:{'\n'}
+                      <Text style={styles.emailHighlight}>{resetEmail}</Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.instructionsContainer}>
+                    <View style={styles.instructionItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      <Text style={styles.instructionText}>Verifique sua caixa de entrada</Text>
+                    </View>
+                    <View style={styles.instructionItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      <Text style={styles.instructionText}>Clique no link do email</Text>
+                    </View>
+                    <View style={styles.instructionItem}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      <Text style={styles.instructionText}>Crie sua nova senha</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.spamNote}>
+                    Não recebeu? Verifique a pasta de spam.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.modalSubmitButton}
+                    onPress={() => {
+                      setShowForgotPassword(false);
+                      setResetEmailSent(false);
+                      setResetEmail('');
+                    }}
+                  >
+                    <Text style={styles.modalSubmitText}>Entendi</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                // Input state - enter email
+                <>
+                  <View style={styles.modalHeader}>
+                    <Ionicons name="key-outline" size={40} color={colors.botanical.dark} />
+                    <Text style={styles.modalTitle}>Recuperar Senha</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Digite seu email e enviaremos um link para redefinir sua senha
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalInputWrapper}>
+                    <Ionicons name="mail-outline" size={20} color={colors.botanical.sage} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Seu email"
+                      placeholderTextColor={colors.botanical.sage}
+                      value={resetEmail}
+                      onChangeText={setResetEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoFocus
+                    />
+                  </View>
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={styles.modalCancelButton}
+                      onPress={() => {
+                        setShowForgotPassword(false);
+                        setResetEmail('');
+                      }}
+                    >
+                      <Text style={styles.modalCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalSubmitButton, (isLoading || !resetEmail.trim()) && styles.submitButtonDisabled]}
+                      onPress={async () => {
+                        if (!resetEmail.trim()) return;
+                        try {
+                          await resetPassword(resetEmail.trim());
+                          setResetEmailSent(true);
+                        } catch (error) {
+                          // Error already handled in context
+                        }
+                      }}
+                      disabled={isLoading || !resetEmail.trim()}
+                    >
+                      <Text style={styles.modalSubmitText}>
+                        {isLoading ? 'Enviando...' : 'Enviar'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -459,6 +677,30 @@ const styles = StyleSheet.create({
     color: colors.botanical.dark,
     fontWeight: '400',
   },
+  inputWrapperError: {
+    borderColor: '#FF5252',
+    borderWidth: 1,
+  },
+  usernamePrefix: {
+    fontSize: 16,
+    color: colors.botanical.sage,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF5252',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.md,
+  },
+  hintText: {
+    fontSize: 12,
+    color: colors.botanical.sage,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.md,
+  },
 
   // Buttons
   submitButton: {
@@ -504,6 +746,128 @@ const styles = StyleSheet.create({
   toggleTextBold: {
     fontWeight: '700',
     color: colors.botanical.dark,
+  },
+
+  // Forgot Password
+  forgotPasswordButton: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.botanical.sage,
+    textDecorationLine: 'underline',
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.ui.background,
+    borderRadius: 24,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: colors.botanical.dark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.botanical.dark,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.botanical.sage,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  modalInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.botanical.sand,
+    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: colors.botanical.sand,
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.botanical.sage,
+  },
+  modalSubmitButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: colors.botanical.dark,
+  },
+  modalSubmitText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.botanical.base,
+  },
+
+  // Success state styles
+  successIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.botanical.sand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  emailHighlight: {
+    fontWeight: '700',
+    color: colors.botanical.dark,
+  },
+  instructionsContainer: {
+    backgroundColor: colors.botanical.sand,
+    borderRadius: 16,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  instructionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: colors.botanical.dark,
+    marginLeft: spacing.sm,
+  },
+  spamNote: {
+    fontSize: 12,
+    color: colors.botanical.sage,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
   },
 
 });

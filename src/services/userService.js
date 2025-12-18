@@ -56,6 +56,7 @@ export const userService = {
             id: userId,
             name: userData.name || 'Usuário',
             email: userData.email,
+            username: userData.username || null,
             avatar_url: userData.avatar_url || null,
             join_date: new Date().toISOString(),
             xp: 0,
@@ -228,6 +229,122 @@ export const userService = {
       };
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Get User Stats'));
+    }
+  },
+
+  // Verificar e conceder badges automaticamente baseado em conquistas
+  checkAndAwardBadges: async (userId) => {
+    try {
+      // Buscar dados do usuário
+      const { data: user, error: userError } = await supabase
+        .from(TABLES.USERS)
+        .select('badges, xp, total_plants, active_days')
+        .eq('id', userId)
+        .single();
+
+      if (userError) throw userError;
+
+      // Contar plantas do usuário
+      const { count: plantCount } = await supabase
+        .from(TABLES.PLANTS)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      // Contar care logs do usuário
+      const { count: careCount } = await supabase
+        .from(TABLES.CARE_LOGS)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      const currentBadges = user.badges || [];
+      const newBadges = [...currentBadges];
+
+      // Regras para conceder badges
+      // Primeira Planta - ter pelo menos 1 planta
+      if (plantCount >= 1 && !currentBadges.includes('first_plant')) {
+        newBadges.push('first_plant');
+      }
+
+      // Colecionador - ter 5+ plantas
+      if (plantCount >= 5 && !currentBadges.includes('plant_collector')) {
+        newBadges.push('plant_collector');
+      }
+
+      // Amante de Plantas - ter 10+ plantas
+      if (plantCount >= 10 && !currentBadges.includes('plant_lover')) {
+        newBadges.push('plant_lover');
+      }
+
+      // Cuidador Dedicado - ter 10+ registros de cuidado
+      if (careCount >= 10 && !currentBadges.includes('dedicated_caretaker')) {
+        newBadges.push('dedicated_caretaker');
+      }
+
+      // Mestre da Água - ter 25+ registros de cuidado
+      if (careCount >= 25 && !currentBadges.includes('water_master')) {
+        newBadges.push('water_master');
+      }
+
+      // Polegar Verde - ter 50+ XP
+      if (user.xp >= 50 && !currentBadges.includes('green_thumb')) {
+        newBadges.push('green_thumb');
+      }
+
+      // Dedicação - ter 100+ XP
+      if (user.xp >= 100 && !currentBadges.includes('dedication')) {
+        newBadges.push('dedication');
+      }
+
+      // Especialista - ter 500+ XP
+      if (user.xp >= 500 && !currentBadges.includes('expert')) {
+        newBadges.push('expert');
+      }
+
+      // Se há novas badges, atualizar no banco
+      if (newBadges.length > currentBadges.length) {
+        const { data, error } = await supabase
+          .from(TABLES.USERS)
+          .update({ 
+            badges: newBadges,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        console.log('🏆 Novas badges concedidas:', newBadges.filter(b => !currentBadges.includes(b)));
+        return { user: data, newBadges: newBadges.filter(b => !currentBadges.includes(b)) };
+      }
+
+      return { user, newBadges: [] };
+    } catch (error) {
+      console.error('❌ Erro ao verificar badges:', error);
+      return { user: null, newBadges: [] };
+    }
+  },
+
+  // Verificar se username está disponível
+  checkUsernameAvailability: async (username) => {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.USERS)
+        .select('id')
+        .eq('username', username.toLowerCase())
+        .single();
+
+      if (error && error.code === 'PGRST116') {
+        // Nenhum resultado encontrado - username disponível
+        return true;
+      }
+      
+      if (error) throw error;
+      
+      // Username já existe
+      return false;
+    } catch (error) {
+      console.error('❌ Erro ao verificar username:', error);
+      throw new Error('Erro ao verificar disponibilidade do username');
     }
   },
 };

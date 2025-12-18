@@ -39,7 +39,7 @@ export const communityService = {
       
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, email, avatar_url, level, total_plants, xp, badges, join_date, active_days')
+        .select('id, name, username, email, avatar_url, level, total_plants, xp, badges, join_date, active_days')
         .eq('id', userId)
         .single();
 
@@ -768,6 +768,41 @@ export const communityService = {
       return count || 0;
     } catch (error) {
       console.error('Erro ao contar notificações:', error);
+      return 0;
+    }
+  },
+
+  /**
+   * Obter contagem de mensagens não lidas em todas as conversas
+   */
+  async getUnreadMessagesCount() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Buscar todas as conversas do usuário
+      const { data: conversations, error: convError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`);
+
+      if (convError) throw convError;
+
+      if (!conversations || conversations.length === 0) return 0;
+
+      // Contar mensagens não lidas em todas as conversas
+      const conversationIds = conversations.map(c => c.id);
+      const { count, error } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .in('conversation_id', conversationIds)
+        .eq('is_read', false)
+        .neq('sender_id', user.id);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.error('Erro ao contar mensagens não lidas:', error);
       return 0;
     }
   },

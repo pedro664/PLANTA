@@ -155,10 +155,11 @@ const HomeScreen = ({ navigation }) => {
   );
 
   // Calculate proper bottom spacing considering tab bar and safe area
+  // Use larger minimum inset for devices with gesture navigation bars
   const TAB_BAR_HEIGHT = 65;
-  const bottomInset = Math.max(insets.bottom, 0);
-  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 16;
-  const contentBottomPadding = TAB_BAR_HEIGHT + bottomInset + 20;
+  const bottomInset = Math.max(insets.bottom, 20);
+  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 24; // Extra margin for large screens
+  const contentBottomPadding = TAB_BAR_HEIGHT + bottomInset + 28;
 
   // Dynamic styles based on safe area and responsive design
   const dynamicStyles = {
@@ -436,8 +437,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   plantImageContainer: {
-    aspectRatio: 4/5, // aspect-[4/5]
-    borderRadius: 28, // rounded-[1.8rem]
+    aspectRatio: 1, // Proporção quadrada para cards mais compactos
+    borderRadius: 20, // Reduzido de 28px para 20px
     overflow: 'hidden',
     position: 'relative',
     marginBottom: 12, // mb-3 = 12px

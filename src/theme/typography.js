@@ -1,5 +1,5 @@
 /**
- * Educultivo - Typography System
+ * EduCultivo - Typography System
  * Using Overlock font family for consistent branding
  */
 

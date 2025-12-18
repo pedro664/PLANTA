@@ -56,7 +56,7 @@ const QRCodeGenerator = ({ plant, visible, onClose }) => {
       const message = generateSharingMessage(plant);
       await Share.share({
         message,
-        title: `${plant.name} - Educultivo`,
+        title: `${plant.name} - EduCultivo`,
       });
     } catch (error) {
       if (error.message !== 'User did not share') {

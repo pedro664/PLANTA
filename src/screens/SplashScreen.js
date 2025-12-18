@@ -1,5 +1,5 @@
 /**
- * Educultivo - Simple Splash Screen
+ * EduCultivo - Simple Splash Screen
  * Clean green background with white logo
  */
 

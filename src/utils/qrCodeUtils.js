@@ -68,7 +68,7 @@ export const parseQRData = (data) => {
       
       return {
         isValid: false,
-        error: 'QR Code não é válido para o Educultivo'
+        error: 'QR Code não é válido para o EduCultivo'
       };
     }
 
@@ -76,7 +76,7 @@ export const parseQRData = (data) => {
     if (!parsedData.type || parsedData.type !== QR_CODE_TYPE) {
       return {
         isValid: false,
-        error: 'QR Code não é do Educultivo'
+        error: 'QR Code não é do EduCultivo'
       };
     }
 
@@ -211,7 +211,7 @@ export const generateQRCodeUrl = (data, size = 300) => {
  */
 export const generateSharingMessage = (plant) => {
   const webLink = generatePlantWebLink(plant.id, plant.name);
-  return `Confira minha planta "${plant.name}" no Educultivo! 🌱\n\n${webLink}`;
+  return `Confira minha planta "${plant.name}" no EduCultivo! 🌱\n\n${webLink}`;
 };
 
 /**
@@ -221,7 +221,7 @@ export const generateSharingMessage = (plant) => {
  * @returns {string} Print message
  */
 export const generatePrintMessage = (plant, qrCodeUrl) => {
-  return `QR Code da planta "${plant.name}"\n\nEscaneie para ver detalhes no Educultivo 🌱\n\n${qrCodeUrl}`;
+  return `QR Code da planta "${plant.name}"\n\nEscaneie para ver detalhes no EduCultivo 🌱\n\n${qrCodeUrl}`;
 };
 
 /**

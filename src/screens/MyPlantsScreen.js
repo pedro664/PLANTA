@@ -33,9 +33,10 @@ const MyPlantsScreen = ({ navigation }) => {
   const responsiveSpacing = getResponsiveSpacing();
   
   // Calculate proper bottom spacing considering tab bar and safe area
-  const bottomInset = Math.max(insets.bottom, 0);
-  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 16; // Tab bar + safe area + margin
-  const contentBottomPadding = TAB_BAR_HEIGHT + bottomInset + 20;
+  // Use larger minimum inset for devices with gesture navigation bars
+  const bottomInset = Math.max(insets.bottom, 20);
+  const fabBottomPosition = TAB_BAR_HEIGHT + bottomInset + 24; // Tab bar + safe area + extra margin for large screens
+  const contentBottomPadding = TAB_BAR_HEIGHT + bottomInset + 28;
 
   // Get filtered plants based on current filter
   const getFilteredPlants = () => {
@@ -123,7 +124,7 @@ const MyPlantsScreen = ({ navigation }) => {
       ]}>
         <Ionicons 
           name={config.icon} 
-          size={16} 
+          size={14} 
           color="white" 
         />
       </View>
@@ -211,7 +212,7 @@ const MyPlantsScreen = ({ navigation }) => {
               <View style={styles.statusInfo}>
                 <Ionicons 
                   name={getStatusIcon(plant.status)} 
-                  size={12} 
+                  size={11} 
                   color={getStatusColor(plant.status)} 
                 />
                 <Text style={[styles.statusText, { color: getStatusColor(plant.status) }]}>
@@ -232,7 +233,7 @@ const MyPlantsScreen = ({ navigation }) => {
             }}
             activeOpacity={0.7}
           >
-            <Ionicons name="pencil" size={16} color={colors.botanical.sage} />
+            <Ionicons name="pencil" size={14} color={colors.botanical.sage} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
@@ -242,7 +243,7 @@ const MyPlantsScreen = ({ navigation }) => {
             }}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash" size={16} color={colors.system.error} />
+            <Ionicons name="trash" size={14} color={colors.system.error} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -464,24 +465,24 @@ const styles = StyleSheet.create({
     paddingBottom: 20, // Reduced to ensure content is visible above tab bar
   },
   itemSeparator: {
-    height: 20, // gap-5 = 20px
+    height: 16, // Reduzido de 20px para 16px
   },
 
   // Plant card styles - responsive design
   plantCard: {
     width: Math.floor(cardWidth), // Ensure integer width
-    marginBottom: 20, // gap-5 = 20px
+    marginBottom: 16, // Reduzido de 20px para 16px
     backgroundColor: colors.ui.background,
-    borderRadius: 28, // rounded-[1.8rem] ≈ 28px
+    borderRadius: 20, // Reduzido de 28px para 20px
     overflow: 'hidden',
     shadowColor: 'rgba(46, 74, 61, 0.08)',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 6 }, // Reduzido de 10px para 6px
     shadowOpacity: 1,
-    shadowRadius: 40,
-    elevation: 8,
+    shadowRadius: 20, // Reduzido de 40px para 20px
+    elevation: 6, // Reduzido de 8 para 6
   },
   imageContainer: {
-    aspectRatio: 3/4, // aspect-[3/4]
+    aspectRatio: 1, // Proporção quadrada para cards mais compactos
     position: 'relative',
   },
   plantImage: {
@@ -491,18 +492,18 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     position: 'absolute',
-    top: 12, // top-3 = 12px
-    right: 12, // right-3 = 12px
-    width: 32, // w-8 = 32px
-    height: 32, // h-8 = 32px
-    borderRadius: 16,
+    top: 10, // Reduzido de 12px para 10px
+    right: 10, // Reduzido de 12px para 10px
+    width: 28, // Reduzido de 32px para 28px
+    height: 28, // Reduzido de 32px para 28px
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   statusBadgeAnimated: {
     // This would need a proper animation implementation
@@ -521,33 +522,33 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120, // Enough height to cover the text area
+    height: 100, // Reduzido de 120px para 100px
     backgroundColor: 'transparent',
     // Simulate gradient with multiple overlays
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 20, // Ajustado para o novo borderRadius
+    borderBottomRightRadius: 20, // Ajustado para o novo borderRadius
     // Create gradient effect using shadow and background
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -20 },
+    shadowOffset: { width: 0, height: -15 },
     shadowOpacity: 0.7,
-    shadowRadius: 20,
+    shadowRadius: 15,
     elevation: 0,
   },
   plantInfoContent: {
     position: 'relative',
-    padding: spacing.md,
+    padding: spacing.sm, // Reduzido de spacing.md para spacing.sm
     backgroundColor: 'rgba(0, 0, 0, 0.4)', // Semi-transparent background
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    borderBottomLeftRadius: 20, // Ajustado para o novo borderRadius
+    borderBottomRightRadius: 20, // Ajustado para o novo borderRadius
   },
   plantNameContainer: {
     flexDirection: 'column',
-    marginBottom: 8, // mt-2 = 8px
+    marginBottom: 6, // Reduzido de 8px para 6px
   },
   plantName: {
     fontFamily: 'Overlock-Bold',
     color: colors.ui.background,
-    fontSize: 14, // text-sm
+    fontSize: 13, // Reduzido de 14px para 13px
     fontWeight: '700',
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
@@ -556,7 +557,7 @@ const styles = StyleSheet.create({
   plantScientific: {
     fontFamily: 'Overlock-Italic',
     color: 'rgba(255, 255, 255, 0.7)', // text-white/70
-    fontSize: 12, // text-xs
+    fontSize: 11, // Reduzido de 12px para 11px
     fontStyle: 'italic',
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
@@ -574,7 +575,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontFamily: 'Overlock-Regular',
-    fontSize: 12, // text-xs
+    fontSize: 11, // Reduzido de 12px para 11px
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -615,15 +616,15 @@ const styles = StyleSheet.create({
   // Action buttons styles
   actionButtons: {
     position: 'absolute',
-    top: spacing.sm,
-    left: spacing.sm,
+    top: spacing.xs, // Reduzido de spacing.sm para spacing.xs
+    left: spacing.xs, // Reduzido de spacing.sm para spacing.xs
     flexDirection: 'row',
     gap: spacing.xs,
   },
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28, // Reduzido de 32px para 28px
+    height: 28, // Reduzido de 32px para 28px
+    borderRadius: 14,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',

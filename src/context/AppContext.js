@@ -9,8 +9,15 @@ import { userService } from '../services/userService';
 import { plantService } from '../services/plantService';
 import { careLogService } from '../services/careLogService';
 import { postService } from '../services/postService';
-import { showSuccessToast, showErrorToast } from '../components/Toast';
+import { showSuccessToast, showErrorToast, showBadgeToast } from '../components/Toast';
 import { logAndNotifyError } from '../utils/errorUtils';
+import { 
+  playBadgeEarnedSound, 
+  playPlantCreatedSound, 
+  playCareLoggedSound,
+  playLikeSound,
+  playCommentSound 
+} from '../services/soundService';
 
 // Create the context
 const AppContext = createContext();
@@ -205,6 +212,36 @@ export const AppProvider = ({ children }) => {
       console.log('✅ Histórico carregado:', careLogs?.length || 0);
       dispatch({ type: ACTION_TYPES.SET_CARE_LOGS, payload: careLogs || [] });
 
+      // Verificar e conceder badges automaticamente
+      console.log('🏆 Verificando badges...');
+      try {
+        const { user: updatedUser, newBadges } = await userService.checkAndAwardBadges(userId);
+        if (newBadges && newBadges.length > 0) {
+          console.log('🎉 Novas badges conquistadas:', newBadges);
+          dispatch({ type: ACTION_TYPES.SET_USER, payload: updatedUser });
+          
+          // Mostrar toast especial para cada nova badge
+          const badgeNames = {
+            first_plant: 'Primeira Planta 🌱',
+            plant_collector: 'Colecionador de Plantas 🌿',
+            plant_lover: 'Amante de Plantas 💚',
+            dedicated_caretaker: 'Cuidador Dedicado 🌻',
+            water_master: 'Mestre da Água 💧',
+            green_thumb: 'Polegar Verde 👍',
+            dedication: 'Dedicação Total 🏅',
+            expert: 'Especialista 🎓',
+          };
+          
+          // Tocar som e mostrar toast para cada badge
+          for (const badge of newBadges) {
+            await playBadgeEarnedSound();
+            showBadgeToast(badgeNames[badge] || badge);
+          }
+        }
+      } catch (badgeError) {
+        console.warn('⚠️ Erro ao verificar badges:', badgeError);
+      }
+
       console.log('🎉 Dados do usuário carregados com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao carregar dados do usuário:', error);
@@ -218,6 +255,7 @@ export const AppProvider = ({ children }) => {
         try {
           const newUserProfile = await userService.createUserProfile(userId, {
             name: session?.user?.user_metadata?.name || 'Usuário',
+            username: session?.user?.user_metadata?.username || null,
             email: session?.user?.email || '',
           });
           console.log('✅ Perfil criado:', newUserProfile?.name);
@@ -230,6 +268,7 @@ export const AppProvider = ({ children }) => {
           const basicUser = {
             id: userId,
             name: session?.user?.user_metadata?.name || 'Usuário',
+            username: session?.user?.user_metadata?.username || null,
             email: session?.user?.email || '',
             xp: 0,
             level: 'Iniciante',
@@ -305,6 +344,24 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email) => {
+    try {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+      await authHelpers.resetPassword(email);
+      showSuccessToast('Email de recuperação enviado! Verifique sua caixa de entrada.');
+    } catch (error) {
+      console.error('❌ Erro ao enviar email de recuperação:', error);
+      let errorMsg = error.message || 'Erro ao enviar email';
+      if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        errorMsg = 'Erro de conexão. Verifique sua internet.';
+      }
+      showErrorToast(errorMsg);
+      throw error;
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
+    }
+  };
+
   const signOut = async () => {
     try {
       await authHelpers.signOut();
@@ -370,6 +427,9 @@ export const AppProvider = ({ children }) => {
       
       // Add XP for adding a plant
       await userService.addXP(state.user.id, 10);
+      
+      // Tocar som de sucesso ao criar planta
+      await playPlantCreatedSound();
       
       showSuccessToast('Planta adicionada com sucesso!');
       return newPlant;
@@ -463,6 +523,9 @@ export const AppProvider = ({ children }) => {
         console.warn('⚠️ Erro ao adicionar XP:', xpError);
         // Não falhar o care log por erro de XP
       }
+      
+      // Tocar som de sucesso ao registrar cuidado
+      await playCareLoggedSound();
       
       showSuccessToast('Cuidado registrado com sucesso!');
       return newCareLog;
@@ -588,6 +651,12 @@ export const AppProvider = ({ children }) => {
       });
       
       dispatch({ type: ACTION_TYPES.SET_POSTS, payload: updatedPosts });
+      
+      // Tocar som apenas quando curtir (não quando descurtir)
+      if (result.liked) {
+        await playLikeSound();
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ Error toggling like:', error);
@@ -623,7 +692,10 @@ export const AppProvider = ({ children }) => {
       });
       
       dispatch({ type: ACTION_TYPES.SET_POSTS, payload: updatedPosts });
-      showSuccessToast('Comentário adicionado!');
+      
+      // Tocar som ao comentar (sem toast)
+      await playCommentSound();
+      
       return comment;
     } catch (error) {
       console.error('❌ Error adding comment:', error);
@@ -672,6 +744,7 @@ export const AppProvider = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    resetPassword,
     updateUser,
 
     // Plant functions

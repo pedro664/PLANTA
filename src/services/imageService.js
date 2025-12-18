@@ -13,7 +13,7 @@ const getFileSystem = async () => {
 };
 
 /**
- * Image Service for Educultivo
+ * Image Service for EduCultivo
  * Handles image picking, compression, and local storage
  */
 

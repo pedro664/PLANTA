@@ -1,16 +1,15 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
   TextInput,
   Image,
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  Switch,
-  ActivityIndicator
+  ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import Text from '../components/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,113 +17,65 @@ import { useSafeAreaStyles, getResponsiveSpacing } from '../utils/responsive';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '../context/AppContext';
 import { colors } from '../theme/colors';
-import { textStyles } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 import { useUniversalImagePicker } from '../components/UniversalImagePicker';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
+import { catalogService, PLANT_CATEGORIES, formatCatalogPlant } from '../services/catalogService';
 
 const AddPlantScreen = ({ navigation }) => {
   const { addPlant } = useAppContext();
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
-  
+
+  // Estados do formulário
+  const [step, setStep] = useState(1); // 1: foto, 2: selecionar planta, 3: confirmar
   const [formData, setFormData] = useState({
-    name: '',
-    scientific: '',
-    description: '',
     image: null,
     imageFile: null,
-    waterFrequency: 'weekly',
-    lightNeeds: 'indirect',
     plantedDate: new Date().toISOString().split('T')[0],
-    // Novos campos
-    plantType: null,
-    fertilizerInfo: '',
-    fertilizerType: null,
-    pruningInfo: '',
-    pruningFrequency: null,
-    harvestInfo: '',
-    harvestFrequency: null,
+    selectedPlant: null,
   });
-  
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const [errors, setErrors] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
-
-  // Opções de frequência de rega
-  const waterFrequencyOptions = [
-    { value: 'daily', label: 'Diariamente' },
-    { value: 'every3days', label: 'A cada 3 dias' },
-    { value: 'weekly', label: 'Semanalmente' },
-    { value: 'biweekly', label: 'A cada 2 semanas' },
-    { value: 'monthly', label: 'Mensalmente' },
-  ];
-
-  // Opções de necessidade de luz
-  const lightNeedsOptions = [
-    { value: 'direct', label: 'Sol direto' },
-    { value: 'indirect', label: 'Luz indireta' },
-    { value: 'shade', label: 'Sombra' },
-    { value: 'fullsun', label: 'Pleno sol' },
-    { value: 'hybrid', label: 'Híbrido' },
-  ];
-
-  // Opções de tipo de planta
-  const plantTypeOptions = [
-    { value: 'edible', label: 'Comestível' },
-    { value: 'medicinal', label: 'Medicinal' },
-    { value: 'ornamental', label: 'Ornamental' },
-    { value: 'aromatic', label: 'Aromática' },
-    { value: 'succulent', label: 'Suculenta' },
-    { value: 'fruit', label: 'Frutífera' },
-    { value: 'vegetable', label: 'Hortaliça' },
-    { value: 'herb', label: 'Erva' },
-    { value: 'flower', label: 'Flor' },
-    { value: 'tree', label: 'Árvore' },
-    { value: 'vine', label: 'Trepadeira' },
-    { value: 'aquatic', label: 'Aquática' },
-    { value: 'other', label: 'Outra' },
-  ];
-
-  // Opções de tipo de adubação
-  const fertilizerTypeOptions = [
-    { value: 'organic', label: 'Orgânico' },
-    { value: 'chemical', label: 'Químico' },
-    { value: 'npk', label: 'NPK' },
-    { value: 'compost', label: 'Composto' },
-    { value: 'humus', label: 'Húmus' },
-    { value: 'bokashi', label: 'Bokashi' },
-    { value: 'liquid', label: 'Líquido' },
-    { value: 'slow_release', label: 'Liberação lenta' },
-    { value: 'foliar', label: 'Foliar' },
-    { value: 'none', label: 'Não aduba' },
-  ];
-
-  // Opções de frequência de poda
-  const pruningFrequencyOptions = [
-    { value: 'monthly', label: 'Mensal' },
-    { value: 'quarterly', label: 'Trimestral' },
-    { value: 'biannual', label: 'Semestral' },
-    { value: 'annual', label: 'Anual' },
-    { value: 'as_needed', label: 'Conforme necessário' },
-  ];
-
-  // Opções de frequência de colheita
-  const harvestFrequencyOptions = [
-    { value: 'daily', label: 'Diária' },
-    { value: 'weekly', label: 'Semanal' },
-    { value: 'biweekly', label: 'Quinzenal' },
-    { value: 'monthly', label: 'Mensal' },
-    { value: 'quarterly', label: 'Trimestral' },
-    { value: 'seasonal', label: 'Sazonal' },
-    { value: 'annual', label: 'Anual' },
-  ];
+  
+  // Estados para o catálogo do banco de dados
+  const [catalogPlants, setCatalogPlants] = useState([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [catalogError, setCatalogError] = useState(null);
 
   const { pickImage: pickUniversalImage } = useUniversalImagePicker();
 
-  // Função para selecionar imagem
+
+  // Carregar plantas do catálogo
+  const loadCatalogPlants = useCallback(async () => {
+    setIsLoadingCatalog(true);
+    setCatalogError(null);
+    
+    try {
+      const plants = await catalogService.getFilteredPlants(selectedCategory, searchQuery);
+      setCatalogPlants(plants);
+    } catch (error) {
+      console.error('Erro ao carregar catálogo:', error);
+      setCatalogError('Não foi possível carregar o catálogo de plantas');
+    } finally {
+      setIsLoadingCatalog(false);
+    }
+  }, [selectedCategory, searchQuery]);
+
+  // Carregar catálogo quando mudar categoria ou busca
+  useEffect(() => {
+    if (step === 2) {
+      const debounceTimer = setTimeout(() => {
+        loadCatalogPlants();
+      }, 300);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [step, selectedCategory, searchQuery, loadCatalogPlants]);
+
+  // Selecionar imagem
   const pickImage = async () => {
     try {
       setUploadStatus('Selecionando foto...');
@@ -132,424 +83,382 @@ const AddPlantScreen = ({ navigation }) => {
         aspect: [3, 4],
         quality: 0.8,
       });
-      
-      if (result && result.uri) {
-        console.log('📸 Foto selecionada:', {
-          uri: result.uri,
-          type: result.type,
-          width: result.width,
-          height: result.height,
-        });
 
-        setFormData(prev => ({
+      if (result && result.uri) {
+        setFormData((prev) => ({
           ...prev,
           image: result.uri,
-          imageFile: result
+          imageFile: result,
         }));
-        
-        // Limpar erro de imagem anterior
-        if (errors.image) {
-          setErrors(prev => ({ ...prev, image: undefined }));
-        }
+        setUploadStatus(null);
+        setStep(2);
+      } else {
         setUploadStatus(null);
       }
     } catch (error) {
-      console.error('❌ Erro ao selecionar imagem:', error);
+      console.error('Erro ao selecionar imagem:', error);
       setUploadStatus(null);
-      showErrorToast('Não foi possível selecionar a foto. Tente novamente.');
+      showErrorToast('Não foi possível selecionar a foto.');
     }
   };
 
-  // Validação do formulário
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Nome da planta é obrigatório';
-    }
-
-    if (!formData.image || !formData.imageFile) {
-      newErrors.image = 'Selecione uma foto da planta';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  // Selecionar planta do catálogo
+  const selectPlant = (plant) => {
+    const formattedPlant = formatCatalogPlant(plant);
+    setFormData((prev) => ({ ...prev, selectedPlant: formattedPlant }));
+    setStep(3);
   };
 
-  // Manipular envio do formulário
+  // Salvar planta
   const handleSave = async () => {
-    if (!validateForm()) {
-      showErrorToast('Por favor, corrija os campos obrigatórios');
+    if (!formData.imageFile || !formData.selectedPlant) {
+      showErrorToast('Selecione uma foto e uma planta');
       return;
     }
 
     setIsLoading(true);
-    setUploadStatus('Enviando planta e imagem...');
+    setUploadStatus('Salvando sua planta...');
 
     try {
-      console.log('💾 Salvando planta com dados:', {
-        name: formData.name,
-        hasImage: !!formData.imageFile,
-        imageUri: formData.imageFile?.uri,
-      });
+      const plant = formData.selectedPlant;
 
       const newPlantData = {
-        name: formData.name.trim(),
-        scientific_name: formData.scientific.trim() || null,
-        description: formData.description.trim() || 'Uma planta especial do meu jardim.',
+        name: plant.name,
+        scientific_name: plant.scientific_name,
+        description: plant.description,
         imageFile: formData.imageFile,
-        water_frequency: formData.waterFrequency,
-        light_needs: formData.lightNeeds,
-        planted_date: formData.plantedDate ? new Date(formData.plantedDate).toISOString() : null,
-        // Novos campos
-        plant_type: formData.plantType || null,
-        fertilizer_info: formData.fertilizerInfo.trim() || null,
-        fertilizer_type: formData.fertilizerType || null,
-        pruning_info: formData.pruningInfo.trim() || null,
-        pruning_frequency: formData.pruningFrequency || null,
-        harvest_info: formData.harvestInfo.trim() || null,
-        harvest_frequency: formData.harvestFrequency || null,
+        water_frequency: plant.care.water_frequency,
+        light_needs: plant.care.light_needs,
+        planted_date: formData.plantedDate
+          ? new Date(formData.plantedDate).toISOString()
+          : new Date().toISOString(),
+        plant_type: plant.category,
+        fertilizer_type: plant.fertilizer?.type || null,
+        fertilizer_info: plant.fertilizer?.description || null,
+        pruning_frequency: plant.pruning?.frequency || null,
+        pruning_info: plant.pruning?.description || null,
+        harvest_frequency: plant.harvest?.frequency || null,
+        harvest_info: plant.harvest?.description || null,
+        catalog_id: plant.id,
       };
 
-      setUploadStatus('Processando imagem...');
-      const result = await addPlant(newPlantData);
-      
-      console.log('✅ Planta adicionada com sucesso:', result.id);
+      await addPlant(newPlantData);
+
       setUploadStatus(null);
-      
-      showSuccessToast('Sua planta foi adicionada com sucesso!');
-      
-      // Navegar após delay
+      showSuccessToast('Planta adicionada com sucesso!');
+
       setTimeout(() => {
         setIsLoading(false);
         navigation.goBack();
       }, 1000);
     } catch (error) {
-      console.error('❌ Erro ao salvar planta:', error);
+      console.error('Erro ao salvar planta:', error);
       setUploadStatus(null);
       setIsLoading(false);
-      
-      // Mensagens de erro específicas
-      let mensagem = 'Erro ao salvar a planta.';
-      if (error.message.includes('imagem')) {
-        mensagem = 'Erro com a imagem: ' + error.message;
-      } else if (error.message.includes('permiss')) {
-        mensagem = 'Sem permissão para fazer upload.';
-      }
-      
-      showErrorToast(mensagem);
+      showErrorToast('Erro ao salvar a planta.');
     }
   };
 
-  // Picker component
-  const PickerSection = ({ title, options, selectedValue, onValueChange }) => (
-    <View style={styles.section}>
-      <Text style={styles.label}>{title}</Text>
-      <View style={styles.pickerContainer}>
-        {options.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.pickerOption,
-              selectedValue === option.value && styles.pickerOptionSelected
-            ]}
-            onPress={() => onValueChange(option.value)}
-            activeOpacity={0.8}
-          >
-            <Text style={[
-              styles.pickerOptionText,
-              selectedValue === option.value && styles.pickerOptionTextSelected
-            ]}>
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+
+  // Renderizar item da planta
+  const renderPlantItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.plantItem}
+      onPress={() => selectPlant(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.plantItemIcon}>
+        <Text style={styles.plantItemEmoji}>{item.image_placeholder}</Text>
       </View>
-    </View>
+      <View style={styles.plantItemInfo}>
+        <Text style={styles.plantItemName}>{item.name}</Text>
+        <Text style={styles.plantItemScientific}>{item.scientific_name}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.botanical.sage} />
+    </TouchableOpacity>
   );
+
+  // Renderizar categoria
+  const renderCategory = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryChip,
+        selectedCategory === item.id && styles.categoryChipSelected,
+      ]}
+      onPress={() =>
+        setSelectedCategory(selectedCategory === item.id ? null : item.id)
+      }
+      activeOpacity={0.8}
+    >
+      <Text style={styles.categoryEmoji}>{item.icon}</Text>
+      <Text
+        style={[
+          styles.categoryText,
+          selectedCategory === item.id && styles.categoryTextSelected,
+        ]}
+      >
+        {item.name}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // Renderizar lista vazia ou erro
+  const renderEmptyList = () => {
+    if (isLoadingCatalog) {
+      return (
+        <View style={styles.emptyList}>
+          <ActivityIndicator size="large" color={colors.botanical.clay} />
+          <Text style={styles.emptyText}>Carregando catálogo...</Text>
+        </View>
+      );
+    }
+
+    if (catalogError) {
+      return (
+        <View style={styles.emptyList}>
+          <Ionicons name="cloud-offline" size={48} color={colors.botanical.sage} />
+          <Text style={styles.emptyText}>{catalogError}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadCatalogPlants}>
+            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyList}>
+        <Ionicons name="leaf-outline" size={48} color={colors.botanical.sage} />
+        <Text style={styles.emptyText}>Nenhuma planta encontrada</Text>
+      </View>
+    );
+  };
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => !isLoading && navigation.goBack()}
+          <TouchableOpacity
+            onPress={() => {
+              if (step > 1 && !isLoading) {
+                setStep(step - 1);
+              } else if (!isLoading) {
+                navigation.goBack();
+              }
+            }}
             style={styles.backButton}
             disabled={isLoading}
           >
             <Ionicons name="arrow-back" size={24} color={colors.botanical.dark} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Adicionar Planta</Text>
-          <TouchableOpacity 
-            onPress={handleSave}
-            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color={colors.botanical.base} />
-            ) : (
-              <Text style={styles.saveButtonText}>Salvar</Text>
+          <Text style={styles.headerTitle}>
+            {step === 1 && 'Adicionar Foto'}
+            {step === 2 && 'Escolher Planta'}
+            {step === 3 && 'Confirmar'}
+          </Text>
+          <View style={styles.headerRight}>
+            {step === 3 && (
+              <TouchableOpacity
+                onPress={handleSave}
+                style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.botanical.base} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Salvar</Text>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Progress indicator */}
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressStep, step >= 1 && styles.progressStepActive]} />
+          <View style={[styles.progressStep, step >= 2 && styles.progressStepActive]} />
+          <View style={[styles.progressStep, step >= 3 && styles.progressStepActive]} />
         </View>
 
         {/* Upload Status */}
         {uploadStatus && (
           <View style={styles.uploadStatusBar}>
-            <Ionicons name="cloud-upload-outline" size={16} color={colors.botanical.clay} />
+            <ActivityIndicator size="small" color={colors.botanical.clay} />
             <Text style={styles.uploadStatusText}>{uploadStatus}</Text>
           </View>
         )}
 
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={[styles.contentContainer, { 
-            paddingHorizontal: responsiveSpacing,
-            paddingBottom: safeAreaStyles.contentPaddingBottom 
-          }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Image Picker */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Foto da Planta *</Text>
-            <TouchableOpacity 
-              style={[styles.imagePicker, errors.image && styles.inputError]}
-              onPress={pickImage}
-              activeOpacity={0.8}
-            >
-              {formData.image ? (
-                <Image source={{ uri: formData.image }} style={styles.selectedImage} />
-              ) : (
-                <View style={styles.imagePickerPlaceholder}>
-                  <Ionicons name="camera" size={32} color={colors.botanical.sage} />
-                  <Text style={styles.imagePickerText}>Toque para adicionar foto</Text>
+        {/* Step 1: Foto */}
+        {step === 1 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.stepContent}>
+              <Ionicons name="camera" size={64} color={colors.botanical.sage} />
+              <Text style={styles.stepTitle}>Tire uma foto da sua planta</Text>
+              <Text style={styles.stepDescription}>
+                Fotografe sua planta para começar a registrar seu crescimento
+              </Text>
+              <TouchableOpacity
+                style={styles.photoButton}
+                onPress={pickImage}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="camera" size={24} color={colors.botanical.base} />
+                <Text style={styles.photoButtonText}>Tirar Foto</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Step 2: Selecionar Planta */}
+        {step === 2 && (
+          <View style={styles.selectContainer}>
+            {formData.image && (
+              <View style={styles.photoPreviewSmall}>
+                <Image source={{ uri: formData.image }} style={styles.previewImageSmall} />
+              </View>
+            )}
+
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={20} color={colors.botanical.sage} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar planta..."
+                placeholderTextColor={colors.botanical.sage}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.botanical.sage} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <FlatList
+              data={PLANT_CATEGORIES}
+              renderItem={renderCategory}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesContainer}
+            />
+
+            <FlatList
+              data={catalogPlants}
+              renderItem={renderPlantItem}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.plantsList}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={renderEmptyList}
+            />
+          </View>
+        )}
+
+
+        {/* Step 3: Confirmar */}
+        {step === 3 && formData.selectedPlant && (
+          <ScrollView
+            style={styles.confirmContainer}
+            contentContainerStyle={styles.confirmContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.confirmHeader}>
+              {formData.image && (
+                <Image source={{ uri: formData.image }} style={styles.confirmImage} />
+              )}
+              <View style={styles.confirmInfo}>
+                <Text style={styles.confirmName}>{formData.selectedPlant.name}</Text>
+                <Text style={styles.confirmScientific}>
+                  {formData.selectedPlant.scientific_name}
+                </Text>
+                <Text style={styles.confirmDescription}>
+                  {formData.selectedPlant.description}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.dateSection}>
+              <Text style={styles.sectionLabel}>Data de Plantio</Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={colors.botanical.sage}
+                value={formData.plantedDate}
+                onChangeText={(text) =>
+                  setFormData((prev) => ({ ...prev, plantedDate: text }))
+                }
+                maxLength={10}
+              />
+            </View>
+
+            <View style={styles.careSection}>
+              <Text style={styles.sectionLabel}>Cuidados Necessários</Text>
+
+              <View style={styles.careItem}>
+                <Ionicons name="water" size={20} color={colors.botanical.clay} />
+                <View style={styles.careItemInfo}>
+                  <Text style={styles.careItemTitle}>Rega</Text>
+                  <Text style={styles.careItemValue}>
+                    {formData.selectedPlant.care.water_description}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.careItem}>
+                <Ionicons name="sunny" size={20} color={colors.botanical.clay} />
+                <View style={styles.careItemInfo}>
+                  <Text style={styles.careItemTitle}>Luz</Text>
+                  <Text style={styles.careItemValue}>
+                    {formData.selectedPlant.care.light_description}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.careItem}>
+                <Ionicons name="thermometer" size={20} color={colors.botanical.clay} />
+                <View style={styles.careItemInfo}>
+                  <Text style={styles.careItemTitle}>Temperatura</Text>
+                  <Text style={styles.careItemValue}>
+                    {formData.selectedPlant.care.temperature.ideal}
+                  </Text>
+                </View>
+              </View>
+
+              {formData.selectedPlant.harvest?.frequency && (
+                <View style={styles.careItem}>
+                  <Ionicons name="basket" size={20} color={colors.botanical.clay} />
+                  <View style={styles.careItemInfo}>
+                    <Text style={styles.careItemTitle}>Colheita</Text>
+                    <Text style={styles.careItemValue}>
+                      {formData.selectedPlant.growth.harvest_days}
+                    </Text>
+                  </View>
                 </View>
               )}
-            </TouchableOpacity>
-            {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
-          </View>
-
-          {/* Plant Name */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Nome da Planta *</Text>
-            <TextInput
-              style={[styles.textInput, errors.name && styles.inputError]}
-              value={formData.name}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-              placeholder="Ex: Monstera Deliciosa"
-              placeholderTextColor={colors.botanical.sage}
-            />
-            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-          </View>
-
-          {/* Scientific Name */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Nome Científico (opcional)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={formData.scientific}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, scientific: text }))}
-              placeholder="Ex: Monstera deliciosa"
-              placeholderTextColor={colors.botanical.sage}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Descrição (opcional)</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              value={formData.description}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-              placeholder="Conte um pouco sobre sua planta..."
-              placeholderTextColor={colors.botanical.sage}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-
-          {/* Water Frequency */}
-          <PickerSection
-            title="Frequência de Rega"
-            options={waterFrequencyOptions}
-            selectedValue={formData.waterFrequency}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, waterFrequency: value }))}
-          />
-
-          {/* Light Needs */}
-          <PickerSection
-            title="Necessidade de Luz"
-            options={lightNeedsOptions}
-            selectedValue={formData.lightNeeds}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, lightNeeds: value }))}
-          />
-
-          {/* Planted Date */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Data de Plantio (opcional)</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor={colors.botanical.sage}
-              value={formData.plantedDate}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, plantedDate: text }))}
-              maxLength={10}
-            />
-          </View>
-
-          {/* Plant Type */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Tipo de Planta</Text>
-            <View style={styles.pickerContainerWrap}>
-              {plantTypeOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.pickerOption,
-                    formData.plantType === option.value && styles.pickerOptionSelected
-                  ]}
-                  onPress={() => setFormData(prev => ({ 
-                    ...prev, 
-                    plantType: prev.plantType === option.value ? null : option.value 
-                  }))}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[
-                    styles.pickerOptionText,
-                    formData.plantType === option.value && styles.pickerOptionTextSelected
-                  ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
             </View>
-          </View>
 
-          {/* Advanced Options Toggle */}
-          <TouchableOpacity 
-            style={styles.advancedToggle}
-            onPress={() => setShowAdvanced(!showAdvanced)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.advancedToggleContent}>
-              <Ionicons 
-                name={showAdvanced ? "chevron-up" : "chevron-down"} 
-                size={20} 
-                color={colors.botanical.clay} 
-              />
-              <Text style={styles.advancedToggleText}>
-                {showAdvanced ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
-              </Text>
-            </View>
-            <Text style={styles.advancedToggleHint}>
-              Adubação, poda e colheita
-            </Text>
-          </TouchableOpacity>
-
-          {showAdvanced && (
-            <View style={styles.advancedSection}>
-              {/* Fertilizer Section */}
-              <View style={styles.sectionDivider}>
-                <Ionicons name="leaf" size={18} color={colors.botanical.clay} />
-                <Text style={styles.sectionDividerText}>Adubação</Text>
+            {formData.selectedPlant.tips && formData.selectedPlant.tips.length > 0 && (
+              <View style={styles.tipsSection}>
+                <Text style={styles.sectionLabel}>Dicas</Text>
+                {formData.selectedPlant.tips.map((tip, index) => (
+                  <View key={index} style={styles.tipItem}>
+                    <Ionicons name="bulb" size={16} color={colors.botanical.clay} />
+                    <Text style={styles.tipText}>{tip}</Text>
+                  </View>
+                ))}
               </View>
-
-              <PickerSection
-                title="Tipo de Adubação"
-                options={fertilizerTypeOptions}
-                selectedValue={formData.fertilizerType}
-                onValueChange={(value) => setFormData(prev => ({ 
-                  ...prev, 
-                  fertilizerType: prev.fertilizerType === value ? null : value 
-                }))}
-              />
-
-              <View style={styles.section}>
-                <Text style={styles.label}>Informações sobre Adubação</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={formData.fertilizerInfo}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, fertilizerInfo: text }))}
-                  placeholder="Ex: NPK 10-10-10, adubo orgânico..."
-                  placeholderTextColor={colors.botanical.sage}
-                  multiline
-                  numberOfLines={2}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Pruning Section */}
-              <View style={styles.sectionDivider}>
-                <Ionicons name="cut" size={18} color={colors.botanical.clay} />
-                <Text style={styles.sectionDividerText}>Poda</Text>
-              </View>
-
-              <PickerSection
-                title="Frequência de Poda"
-                options={pruningFrequencyOptions}
-                selectedValue={formData.pruningFrequency}
-                onValueChange={(value) => setFormData(prev => ({ 
-                  ...prev, 
-                  pruningFrequency: prev.pruningFrequency === value ? null : value 
-                }))}
-              />
-
-              <View style={styles.section}>
-                <Text style={styles.label}>Informações sobre Poda</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={formData.pruningInfo}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, pruningInfo: text }))}
-                  placeholder="Ex: Podar galhos secos, época ideal..."
-                  placeholderTextColor={colors.botanical.sage}
-                  multiline
-                  numberOfLines={2}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Harvest Section */}
-              <View style={styles.sectionDivider}>
-                <Ionicons name="basket" size={18} color={colors.botanical.clay} />
-                <Text style={styles.sectionDividerText}>Colheita</Text>
-              </View>
-
-              <PickerSection
-                title="Frequência de Colheita"
-                options={harvestFrequencyOptions}
-                selectedValue={formData.harvestFrequency}
-                onValueChange={(value) => setFormData(prev => ({ 
-                  ...prev, 
-                  harvestFrequency: prev.harvestFrequency === value ? null : value 
-                }))}
-              />
-
-              <View style={styles.section}>
-                <Text style={styles.label}>Informações sobre Colheita</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  value={formData.harvestInfo}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, harvestInfo: text }))}
-                  placeholder="Ex: Colher quando maduro, sinais de maturação..."
-                  placeholderTextColor={colors.botanical.sage}
-                  multiline
-                  numberOfLines={2}
-                  textAlignVertical="top"
-                />
-              </View>
-            </View>
-          )}
-
-        </ScrollView>
+            )}
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -559,8 +468,6 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-
-  // Header styles
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -572,213 +479,316 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    width: 40,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.botanical.dark,
   },
+  headerRight: {
+    width: 80,
+    alignItems: 'flex-end',
+  },
   saveButton: {
+    backgroundColor: colors.botanical.clay,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.botanical.clay,
     borderRadius: 20,
-    minWidth: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   saveButtonDisabled: {
     opacity: 0.6,
   },
   saveButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.botanical.base,
   },
-
-  // Upload status
+  progressContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    gap: 8,
+  },
+  progressStep: {
+    flex: 1,
+    height: 4,
+    backgroundColor: colors.botanical.sage + '30',
+    borderRadius: 2,
+  },
+  progressStepActive: {
+    backgroundColor: colors.botanical.clay,
+  },
   uploadStatusBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.botanical.clay + '20',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    justifyContent: 'center',
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.botanical.clay + '40',
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.botanical.clay + '10',
   },
   uploadStatusText: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.botanical.clay,
-    fontWeight: '500',
   },
-
-  // Content styles
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 100, // Space for tab bar
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.botanical.dark,
-    marginBottom: 8,
-  },
-
-  // Image picker styles
-  imagePicker: {
-    height: 200,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: colors.botanical.sage + '40',
-    borderStyle: 'dashed',
-    overflow: 'hidden',
-  },
-  imagePickerPlaceholder: {
+  stepContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    padding: spacing.lg,
   },
-  imagePickerText: {
-    fontSize: 14,
+  stepContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.botanical.dark,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  stepDescription: {
+    fontSize: 16,
     color: colors.botanical.sage,
     textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: spacing.xl,
   },
-  selectedImage: {
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.botanical.clay,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  photoButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.botanical.base,
+  },
+  selectContainer: {
+    flex: 1,
+  },
+  photoPreviewSmall: {
+    height: 100,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  previewImageSmall: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-
-  // Input styles
-  textInput: {
-    borderWidth: 1,
-    borderColor: colors.botanical.sage + '40',
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.ui.background,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
     paddingVertical: 12,
     fontSize: 16,
     color: colors.botanical.dark,
-    backgroundColor: colors.ui.background,
   },
-  textArea: {
-    height: 80,
-    paddingTop: 12,
-  },
-  inputError: {
-    borderColor: '#EF4444',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#EF4444',
-    marginTop: 4,
-  },
-
-  // Picker styles
-  pickerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  categoriesContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
     gap: 8,
   },
-  pickerContainerWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-
-  // Advanced toggle styles
-  advancedToggle: {
-    backgroundColor: colors.botanical.clay + '10',
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.botanical.clay + '30',
-  },
-  advancedToggleContent: {
+  categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  advancedToggleText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.botanical.clay,
-  },
-  advancedToggleHint: {
-    fontSize: 12,
-    color: colors.botanical.sage,
-    marginTop: 4,
-    marginLeft: 28,
-  },
-
-  // Advanced section styles
-  advancedSection: {
+    gap: 6,
     backgroundColor: colors.ui.background,
-    borderRadius: 16,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.botanical.sage + '20',
-  },
-  sectionDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: spacing.md,
-    marginTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.botanical.sage + '20',
-  },
-  sectionDividerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.botanical.clay,
-  },
-  pickerOption: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.botanical.sage + '40',
-    backgroundColor: colors.ui.background,
+    marginRight: 8,
   },
-  pickerOptionSelected: {
+  categoryChipSelected: {
     backgroundColor: colors.botanical.clay,
-    borderColor: colors.botanical.clay,
   },
-  pickerOptionText: {
+  categoryEmoji: {
+    fontSize: 16,
+  },
+  categoryText: {
     fontSize: 14,
+    fontWeight: '500',
     color: colors.botanical.dark,
   },
-  pickerOptionTextSelected: {
+  categoryTextSelected: {
     color: colors.botanical.base,
-    fontWeight: '600',
   },
-
-  // Switch styles
-  switchContainer: {
+  plantsList: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  plantItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    backgroundColor: colors.ui.background,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
   },
-  switchInfo: {
+  plantItemIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.botanical.clay + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  plantItemEmoji: {
+    fontSize: 24,
+  },
+  plantItemInfo: {
     flex: 1,
-    marginRight: 16,
   },
-  switchDescription: {
-    fontSize: 12,
+  plantItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.botanical.dark,
+    marginBottom: 2,
+  },
+  plantItemScientific: {
+    fontSize: 13,
+    fontStyle: 'italic',
     color: colors.botanical.sage,
-    marginTop: 2,
+  },
+  emptyList: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.botanical.sage,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.botanical.clay,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.botanical.base,
+  },
+  confirmContainer: {
+    flex: 1,
+  },
+  confirmContent: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  confirmHeader: {
+    flexDirection: 'row',
+    marginBottom: spacing.lg,
+  },
+  confirmImage: {
+    width: 100,
+    height: 130,
+    borderRadius: 12,
+    marginRight: spacing.md,
+  },
+  confirmInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  confirmName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.botanical.dark,
+    marginBottom: 4,
+  },
+  confirmScientific: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: colors.botanical.sage,
+    marginBottom: 8,
+  },
+  confirmDescription: {
+    fontSize: 14,
+    color: colors.botanical.dark,
+    lineHeight: 20,
+  },
+  dateSection: {
+    marginBottom: spacing.lg,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.botanical.dark,
+    marginBottom: spacing.sm,
+  },
+  dateInput: {
+    backgroundColor: colors.ui.background,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: colors.botanical.dark,
+  },
+  careSection: {
+    marginBottom: spacing.lg,
+  },
+  careItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.ui.background,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  careItemInfo: {
+    flex: 1,
+  },
+  careItemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.botanical.dark,
+    marginBottom: 2,
+  },
+  careItemValue: {
+    fontSize: 14,
+    color: colors.botanical.sage,
+    lineHeight: 20,
+  },
+  tipsSection: {
+    marginBottom: spacing.lg,
+  },
+  tipItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.ui.background,
+    padding: spacing.md,
+    borderRadius: 12,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.botanical.dark,
+    lineHeight: 20,
   },
 });
 

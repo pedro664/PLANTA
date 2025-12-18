@@ -38,12 +38,12 @@ const CommunityScreen = ({ navigation }) => {
   const safeAreaStyles = useSafeAreaStyles();
   const responsiveSpacing = getResponsiveSpacing();
 
-  // Carregar contadores de notificações
+  // Carregar contadores de notificações e mensagens não lidas
   useEffect(() => {
     const loadCounts = async () => {
       try {
         const [msgCount, reqCount] = await Promise.all([
-          communityService.getUnreadNotificationsCount(),
+          communityService.getUnreadMessagesCount(),
           communityService.getPendingFriendRequests().then(r => r.length)
         ]);
         setUnreadMessages(msgCount);

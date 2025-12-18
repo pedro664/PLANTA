@@ -1,5 +1,5 @@
 /**
- * Educultivo - Shadow System
+ * EduCultivo - Shadow System
  * Platform-specific shadows for iOS and Android
  */
 

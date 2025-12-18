@@ -89,13 +89,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const handleLike = async () => {
     try {
       await toggleLike(currentPost.id);
-      
-      // Show toast feedback
-      if (isLiked) {
-        showInfoToast('Curtida removida');
-      } else {
-        showInfoToast('Post curtido! ❤️');
-      }
+      // Som/haptic feedback é tocado no AppContext
     } catch (error) {
       console.error('Error toggling like:', error);
       showErrorToast('Erro ao curtir post. Tente novamente.');
@@ -127,7 +121,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         await loadComments();
       }
       
-      showInfoToast('Comentário adicionado!');
+      // Som/haptic feedback é tocado no AppContext
       setNewComment('');
       
       // Reset input animation

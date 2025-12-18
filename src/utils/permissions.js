@@ -2,7 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Alert, Linking, Platform } from 'react-native';
 
 /**
- * Permissions utility for Educultivo
+ * Permissions utility for EduCultivo
  * Handles camera and gallery permissions with user-friendly alerts
  * Requirements: 10.1, 10.2, 10.3, 10.4, 10.5
  */
@@ -17,7 +17,7 @@ export const requestCameraPermission = async () => {
     const shouldRequest = await new Promise((resolve) => {
       Alert.alert(
         'Acesso à Câmera',
-        'O Educultivo precisa de acesso à câmera para que você possa fotografar suas plantas e acompanhar seu crescimento.',
+        'O EduCultivo precisa de acesso à câmera para que você possa fotografar suas plantas e acompanhar seu crescimento.',
         [
           {
             text: 'Cancelar',
@@ -81,7 +81,7 @@ export const requestGalleryPermission = async () => {
     const shouldRequest = await new Promise((resolve) => {
       Alert.alert(
         'Acesso à Galeria',
-        'O Educultivo precisa de acesso à sua galeria de fotos para que você possa escolher imagens das suas plantas.',
+        'O EduCultivo precisa de acesso à sua galeria de fotos para que você possa escolher imagens das suas plantas.',
         [
           {
             text: 'Cancelar',

@@ -26,6 +26,7 @@ import { spacing, borderRadius } from '../theme/spacing';
 import { communityService } from '../services/communityService';
 import { useAppContext } from '../context/AppContext';
 import { showErrorToast, showSuccessToast } from '../components/Toast';
+import { playMessageSound } from '../services/soundService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const IMAGE_MAX_WIDTH = SCREEN_WIDTH * 0.6;
@@ -250,6 +251,9 @@ const ChatScreen = ({ navigation, route }) => {
       const sentMessage = await communityService.sendMessage(conversationId, messageText);
       console.log('✅ Mensagem enviada:', sentMessage?.id);
       
+      // Tocar som ao enviar mensagem
+      await playMessageSound();
+      
       // Substituir mensagem temporária pela real (se realtime não fizer isso)
       setMessages(prev => {
         // Verificar se a mensagem real já foi adicionada via realtime
@@ -288,6 +292,35 @@ const ChatScreen = ({ navigation, route }) => {
       return 'Ontem';
     }
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  const handleDeleteMessage = (message) => {
+    if (message.sender?.id !== currentUser?.id) {
+      showErrorToast('Você só pode deletar suas próprias mensagens');
+      return;
+    }
+
+    Alert.alert(
+      'Deletar mensagem',
+      'Tem certeza que deseja deletar esta mensagem?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Deletar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await communityService.deleteMessage(conversationId, message.id);
+              setMessages(prev => prev.filter(m => m.id !== message.id));
+              showSuccessToast('Mensagem deletada');
+            } catch (error) {
+              console.error('Erro ao deletar mensagem:', error);
+              showErrorToast('Erro ao deletar mensagem');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderMessage = ({ item, index }) => {
@@ -339,10 +372,15 @@ const ChatScreen = ({ navigation, route }) => {
               </Text>
             </TouchableOpacity>
           ) : (
-            <View style={[
-              styles.messageBubble,
-              isOwnMessage ? styles.ownBubble : styles.otherBubble
-            ]}>
+            <TouchableOpacity 
+              onLongPress={() => isOwnMessage && handleDeleteMessage(item)}
+              delayLongPress={500}
+              activeOpacity={0.8}
+              style={[
+                styles.messageBubble,
+                isOwnMessage ? styles.ownBubble : styles.otherBubble
+              ]}
+            >
               <Text style={[
                 styles.messageText,
                 isOwnMessage ? styles.ownMessageText : styles.otherMessageText
@@ -355,7 +393,7 @@ const ChatScreen = ({ navigation, route }) => {
               ]}>
                 {formatTime(item.created_at)}
               </Text>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
       </View>

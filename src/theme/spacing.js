@@ -1,5 +1,5 @@
 /**
- * Educultivo - Spacing and Layout System
+ * EduCultivo - Spacing and Layout System
  * Consistent spacing values and border radius for the entire app
  */
 

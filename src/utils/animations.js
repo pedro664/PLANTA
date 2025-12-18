@@ -1,7 +1,7 @@
 import { Animated, Easing } from 'react-native';
 
 /**
- * Animation utilities for Educultivo using React Native's built-in Animated API
+ * Animation utilities for EduCultivo using React Native's built-in Animated API
  * Provides reusable animations for consistent user experience
  */
 

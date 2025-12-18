@@ -166,13 +166,30 @@ export const authHelpers = {
     }
   },
 
-  // Reset password
+  // Reset password - sends email with deep link to app
   resetPassword: async (email) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      // Use the app's custom URL scheme for deep linking
+      // This must be added to Supabase Auth redirect URLs: planta-app://
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'planta-app://reset-password',
+      });
       if (error) throw error;
+      return true;
     } catch (error) {
       throw new Error(handleSupabaseError(error, 'Reset Password'));
+    }
+  },
+
+  // Update password (used after clicking reset link)
+  updatePassword: async (newPassword) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+    } catch (error) {
+      throw new Error(handleSupabaseError(error, 'Update Password'));
     }
   },
 };

@@ -22,13 +22,18 @@ import { spacing, borderRadius } from '../theme/spacing';
 import { showSuccessToast, showErrorToast } from '../components/Toast';
 import { StorageService } from '../services/storageService';
 
-const CreatePostScreen = ({ navigation }) => {
+const CreatePostScreen = ({ navigation, route }) => {
   const { createPost, user } = useAppContext();
-  const [description, setDescription] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
+  const prefillData = route?.params?.prefillData;
+  
+  const [description, setDescription] = useState(prefillData?.description || '');
+  const [selectedImage, setSelectedImage] = useState(
+    prefillData?.imageFile ? prefillData.imageFile : null
+  );
   const [category, setCategory] = useState('all');
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [evolutionId] = useState(prefillData?.evolutionId || null);
   
   // Animation values
   const submitButtonScale = useRef(new Animated.Value(1)).current;
@@ -85,7 +90,17 @@ const CreatePostScreen = ({ navigation }) => {
         imageFile: selectedImage, // Pass the image file for upload
       };
 
-      await createPost(postData);
+      const newPost = await createPost(postData);
+      
+      // Se for uma evolução compartilhada, vincular ao post
+      if (evolutionId && newPost?.id) {
+        try {
+          const { evolutionService } = await import('../services/evolutionService');
+          await evolutionService.linkEvolutionToPost(evolutionId, newPost.id);
+        } catch (linkError) {
+          console.error('Erro ao vincular evolução ao post:', linkError);
+        }
+      }
       
       showSuccessToast('Post criado com sucesso!');
       navigation.goBack();
